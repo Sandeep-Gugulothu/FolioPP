@@ -1,0 +1,62 @@
+# Dependencies
+node_modules/
+.npm/
+package-lock.json (sometimes kept, but common to ignore in some mono-repos)
+dist/
+build/
+.next/
+.vitepress/dist/
+.vitepress/cache/
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+.venv
+venv/
+ENV/
+env.bak/
+venv.bak/
+
+# Docker
+.docker/
+docker-compose.override.yml
+
+# Environment
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+.project
+.pydevproject
+.settings/
