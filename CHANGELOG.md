@@ -28,3 +28,30 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Custom windowing logic featuring collision-aware positioning and automatic 'Gravity/Vacuum' gap resolution.
 - **Integrated AI Copilot**: Added a side-by-side market interrogation interface with tactical prompt cards and a multi-accessory input tray.
 - Migrated the frontend to a scalable **`src/`** directory structure, isolating logic into **`charts/`**, **`signals/`**, and **`chat/`** domains.
+
+## [0.2.0] - 2026-03-21
+
+### Added
+- Proper scalable backend structure.
+- In the backend/providers folder, we have added the data providers for NSE India and yfinance that can be scalable to the other providers also. Also each provider has many models to the certain data.
+- Added the standardized pipeline for data processing.
+- In the frontend connceted using the fast-api currently no storage solution.
+
+## [0.2.1] - 2026-03-23
+
+### Added
+- Financials Module: Implemented comprehensive financial statement tables (Income, Balance Sheet, Cash Flow) with real-time data integration.
+- Data Visualization: Added **Plotly** charts for Expense Analysis, Profitability Trends, and Revenue Growth, featuring Indian market timelines (FY 2015-2026) and ₹ Cr valuation metrics.
+- UI/UX Enhancements:
+  - Smart Windowing: Enhanced the workstation to automatically resize and position new financial tables to fit available screen space without overlapping existing charts.
+  - Data Density: Implemented "Compact Mode" for financial tables, reducing row height by 30% to display more historical data (12+ years) in a single view.
+  - Visual Feedback: Added "Syncing..." loading states and "NSE/BSE Projected" data indicators for projected/simulated data.
+- Research on the AI and trained a meta-llama-3.1-8b model for the financial domain.  
+- **Currently the AI is not fully functional due to the lack of proper dataset and the computational power to train the model.**Its too much heavy to run in the local environment.
+
+## [0.2.2] - 2026-03-25
+
+### Added
+- Trained and tested FolioGPT model it is becoming too heavy to run on the local environment so we are planning to use the Groq API for the AI.
+- Implemented the Market Classifier module that will be used to classify the market news and extract features from it.
+- Implemented the technical analysis tab that will be used to analyze the technical indicators of the stock.

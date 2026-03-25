@@ -1,0 +1,19 @@
+[project]
+name = "foliopp-indmoney"
+version = "0.1.0"
+description = "INDmoney historical data provider for FolioPP"
+requires-python = ">=3.10"
+dependencies = [
+    "requests",
+    "pydantic>=2.0.0",
+    "pandas>=2.0.0",
+    "python-dateutil>=2.8.2",
+    "foliopp-core",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["foliopp_indmoney"]

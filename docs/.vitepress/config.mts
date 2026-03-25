@@ -24,6 +24,14 @@ export default defineConfig({
                 ]
             },
             {
+                text: 'Providers',
+                items: [
+                    { text: 'Introduction', link: '/providers' },
+                    { text: 'yfinance', link: '/yfinance' },
+                    { text: 'NSE India', link: '/nse' }
+                ]
+            },
+            {
                 text: 'About',
                 items: [
                     { text: 'Credits', link: '/credits' }

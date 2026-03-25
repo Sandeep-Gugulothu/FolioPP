@@ -1,26 +1,76 @@
 @import "tailwindcss";
 
+@theme {
+  --color-primary-text: var(--text-primary);
+  --color-secondary-text: var(--text-secondary);
+  --color-primary-border: var(--border-primary);
+  --color-primary-bg: var(--bg-primary);
+  --color-surface-bg: var(--bg-surface);
+  
+  --font-sans: var(--outfit-font), sans-serif;
+  --font-outfit: var(--outfit-font), sans-serif;
+}
+
 @font-face {
   font-family: 'Fira Code';
-  src: url('/fonts/FiraCode-VF.ttf') format('truetype'),
-       url('/fonts/FiraCode-Regular.ttf') format('truetype');
+  src: url('/fonts/FiraCode-VF.ttf') format('truetype');
   font-weight: 100 900;
   font-style: normal;
 }
 
 :root {
   --font-fira-code: 'Fira Code', monospace;
+  --font-outfit: var(--font-outfit), sans-serif;
+  /* Default: Dark Theme */
+  --bg-primary: #0a0a0a;
+  --bg-surface: #0a0a0a;
+  --bg-sidebar: #0a0a0a;
+  --text-primary: #ffffff;
+  --text-secondary: rgba(255, 255, 255, 0.4);
+  --border-primary: rgba(255, 255, 255, 0.05);
+  --accent-color: #2962ff;
+}
+
+[data-theme='light'] {
+  --bg-primary: #f2f2f2;
+  --bg-surface: #ffffff;
+  --bg-sidebar: #e8e8e8;
+  --text-primary: #1a1a1a;
+  --text-secondary: #666666;
+  --border-primary: rgba(0, 0, 0, 0.08);
+  --accent-color: #2962ff;
 }
 
 body {
-  background-color: black;
-  color: white;
-  font-family: var(--font-fira-code);
+  background-color: var(--bg-primary);
+  color: var(--text-primary);
+  font-family: var(--outfit-font), sans-serif !important;
+  transition: background-color 0.3s ease, color 0.3s ease;
+}
+
+/* Force Geometric Sans on all interactive elements */
+input, textarea, button, select {
+  font-family: inherit !important;
 }
 
 .no-scrollbar::-webkit-scrollbar {
   display: none;
 }
+.no-scrollbar {
+  -ms-overflow-style: none; /* IE and Edge */
+  scrollbar-width: none; /* Firefox */
+}
+
+/* 
+   Terminal Design System utilities 
+   Defined at the root level to avoid @layer issues with Turbopack 
+*/
+.terminal-h1 { font-family: var(--outfit-font); @apply text-[18px] font-black text-primary-text leading-tight; }
+.terminal-h2 { font-family: var(--outfit-font); @apply text-[14px] font-black text-primary-text/40 uppercase tracking-[0.2em]; }
+.terminal-h3 { font-family: var(--outfit-font); @apply text-[14px] font-normal text-primary-text leading-snug; }
+.terminal-label { font-family: var(--outfit-font); @apply text-[11px] font-bold text-primary-text/40 uppercase tracking-widest; }
+.terminal-body { font-family: var(--outfit-font); @apply text-[14px] leading-relaxed text-primary-text/80; }
+.terminal-data { font-family: var(--outfit-font); @apply text-[13px] font-bold text-primary-text; }
 
 .font-mono {
   font-family: var(--font-fira-code);

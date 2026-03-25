@@ -1,12 +1,32 @@
 "use client";
 
-import { useState, useRef, useCallback } from "react";
+import { useState, useRef, useCallback, useEffect } from "react";
+import {
+  History, TrendingUp, Newspaper, Info, LayoutList,
+  BarChart3, TrendingDown, Activity, Globe, LayoutDashboard,
+  CandlestickChart
+} from "lucide-react";
+
+// The Registry: Resolves strings to actual React components
+export const ICON_REGISTRY: Record<string, any> = {
+  History: History,
+  TrendingUp: TrendingUp,
+  Newspaper: Newspaper,
+  Info: Info,
+  LayoutList: LayoutList,
+  BarChart3: BarChart3,
+  TrendingDown: TrendingDown,
+  Activity: Activity,
+  Globe: Globe,
+  LayoutDashboard: LayoutDashboard,
+  CandlestickChart: CandlestickChart
+};
 
 export interface PanelState {
   id: string;
   title: string;
   symbol: string;
-  icon: any;
+  icon: string | any;
   x: number;
   y: number;
   w: number;
@@ -15,10 +35,50 @@ export interface PanelState {
   maximized?: boolean;
 }
 
-export function useLayoutManager(initialPanels: PanelState[]) {
+export function useLayoutManager(initialPanels: PanelState[], storageKey?: string) {
   const [panels, setPanels] = useState<PanelState[]>(initialPanels);
   const [activePanelId, setActivePanelId] = useState<string | null>(null);
   const dragRef = useRef<{ id: string, startX: number, startY: number, startWidth: number, startHeight: number, panelStartX: number, panelStartY: number, type: 'move' | 'resize' } | null>(null);
+
+  const isInitialized = useRef(false);
+
+  // 1. Load from Neural Memory (LocalStorage) on mount
+  useEffect(() => {
+    if (typeof window === "undefined" || !storageKey) return;
+    const saved = localStorage.getItem(`foliopp_layout_${storageKey}`);
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        // FORCE HEAL: Ensure icon strings match the expected IDs for restoration
+        const sanitized = parsed.map((p: any) => {
+          let healedIcon = p.icon;
+          // Aggressive healing based on ID mapping
+          if (p.id === 'info') healedIcon = 'History';
+          else if (p.id === 'signals' || p.id.startsWith('signals-')) healedIcon = 'Newspaper';
+          else if (p.id === 'profile' || p.id.startsWith('profile-')) healedIcon = 'Info';
+          else if (p.id === 'performance' || p.id.startsWith('performance-')) healedIcon = 'TrendingUp';
+          else if (p.id.startsWith('financials')) healedIcon = 'LayoutList';
+          else if (p.id.startsWith('rev_chart')) healedIcon = 'BarChart3';
+          else if (p.id.startsWith('exp_chart')) healedIcon = 'TrendingDown';
+          else if (p.id.startsWith('profit_chart')) healedIcon = 'Activity';
+          else if (p.id === 'watchlist') healedIcon = 'Globe';
+          else if (p.id === 'tech_chart') healedIcon = 'CandlestickChart';
+
+          return { ...p, icon: healedIcon };
+        });
+        setPanels(sanitized);
+      } catch (e) {
+        console.error("Failed to restore layout memory:", e);
+      }
+    }
+    isInitialized.current = true;
+  }, [storageKey]);
+
+  // 2. Mirror into Neural Memory whenever layout shifts
+  useEffect(() => {
+    if (typeof window === "undefined" || !storageKey || !isInitialized.current) return;
+    localStorage.setItem(`foliopp_layout_${storageKey}`, JSON.stringify(panels));
+  }, [panels, storageKey]);
 
   // --- Hybrid Collision & Pull-Up Logic ---
 
@@ -27,7 +87,6 @@ export function useLayoutManager(initialPanels: PanelState[]) {
     const active = adjusted.find(p => p.id === activeId);
     if (!active || active.maximized) return currentPanels;
 
-    // Phase 1: Push-Down (Always active - prevents overlapping)
     let changed = true;
     while (changed) {
       changed = false;
@@ -36,21 +95,18 @@ export function useLayoutManager(initialPanels: PanelState[]) {
         if (p.id === activeId || p.maximized) continue;
         const pEffectiveH = p.minimized ? 40 : p.h;
         const activeEffectiveH = active.minimized ? 40 : active.h;
-        
         const overlapX = active.x < p.x + p.w && active.x + active.w > p.x;
         const overlapY = active.y < p.y + pEffectiveH && active.y + active.h > p.y;
-        
         if (overlapX && overlapY) {
-           const buffer = 15;
-           if (p.y < (active.y + activeEffectiveH + buffer)) {
-              adjusted[i] = { ...p, y: active.y + activeEffectiveH + buffer };
-              changed = true;
-           }
+          const buffer = 15;
+          if (p.y < (active.y + activeEffectiveH + buffer)) {
+            adjusted[i] = { ...p, y: active.y + activeEffectiveH + buffer };
+            changed = true;
+          }
         }
       }
     }
 
-    // Phase 2: Pull-Up / Gravity (Disabled while dragging for 'Free Movement')
     if (isDragging) return adjusted;
 
     const sorted = [...adjusted].sort((a, b) => a.y - b.y);
@@ -61,17 +117,17 @@ export function useLayoutManager(initialPanels: PanelState[]) {
       let foundY = false;
       const pEffectiveH = p.minimized ? 40 : p.h;
       while (!foundY) {
-         const collision = finalLayout.find(other => {
-            const otherEffectiveH = other.minimized ? 40 : other.h;
-            const overlapX = p.x < other.x + other.w && p.x + p.w > other.x;
-            const overlapY = currentY < other.y + otherEffectiveH && currentY + pEffectiveH > other.y;
-            return overlapX && overlapY;
-         });
-         if (!collision) { finalLayout.push({ ...p, y: currentY }); foundY = true; }
-         else { 
-            const collisionEffectiveH = collision.minimized ? 40 : collision.h;
-            currentY = collision.y + collisionEffectiveH + 15; 
-         }
+        const collision = finalLayout.find(other => {
+          const otherEffectiveH = other.minimized ? 40 : other.h;
+          const overlapX = p.x < other.x + other.w && p.x + p.w > other.x;
+          const overlapY = currentY < other.y + otherEffectiveH && currentY + pEffectiveH > other.y;
+          return overlapX && overlapY;
+        });
+        if (!collision) { finalLayout.push({ ...p, y: currentY }); foundY = true; }
+        else {
+          const collisionEffectiveH = collision.minimized ? 40 : collision.h;
+          currentY = collision.y + collisionEffectiveH + 15;
+        }
       }
     }
     return finalLayout;
@@ -82,7 +138,7 @@ export function useLayoutManager(initialPanels: PanelState[]) {
     const { id, startX, startY, startWidth, startHeight, panelStartX, panelStartY, type } = dragRef.current;
     const deltaX = e.clientX - startX;
     const deltaY = e.clientY - startY;
-    
+
     setPanels(prev => {
       let nextPanels = prev.map(p => {
         if (p.id !== id) return p;
@@ -123,9 +179,13 @@ export function useLayoutManager(initialPanels: PanelState[]) {
     const next = prev.map(p => p.id === id ? { ...p, minimized: !p.minimized } : p);
     return resolveLayout(next, id);
   }), [resolveLayout]);
-  
+
   const updateSymbols = useCallback((newSymbol: string) => {
     setPanels(prev => prev.map(p => ({ ...p, symbol: newSymbol.toUpperCase() })));
+  }, []);
+
+  const addPanel = useCallback((panel: PanelState) => {
+    setPanels(prev => [...prev, panel]);
   }, []);
 
   return {
@@ -136,6 +196,7 @@ export function useLayoutManager(initialPanels: PanelState[]) {
     handleClose,
     handleMaximize,
     handleMinimize,
-    updateSymbols
+    updateSymbols,
+    addPanel
   };
 }

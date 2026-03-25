@@ -1,39 +1,8 @@
 version: '3.8'
 
 services:
-  # Frontend
-  frontend:
-    build: 
-      context: ./frontend
-      dockerfile: Dockerfile
-    ports:
-      - "3000:3000"
-    environment:
-      - VITE_API_URL=http://localhost:8000
-    volumes:
-      - ./frontend:/app
-      - /app/node_modules
-
-  # Backend API
-  api:
-    build: 
-      context: ./backend
-      dockerfile: Dockerfile
-    ports:
-      - "8000:8000"
-    environment:
-      - DATABASE_URL=postgresql+asyncpg://user:pass@postgres:5432/etdb
-      - REDIS_URL=redis://redis:6379/0
-      - QDRANT_HOST=qdrant
-      - NEO4J_URI=bolt://neo4j:7687
-    depends_on:
-      - postgres
-      - redis
-      - qdrant
-      - neo4j
-    volumes:
-      - ./backend:/app
-
+  # Infrastructure Only (Run App locally for Faster Dev)
+  
   # PostgreSQL
   postgres:
     image: postgres:15-alpine
@@ -92,7 +61,7 @@ services:
     command: ray start --head --dashboard-host 0.0.0.0 --block
     ports:
       - "8265:8265"  # Dashboard
-      - "6379:6379"  # Redis port
+      - "16379:6379"  # Ray Redis port (Mapped to avoid conflict)
     volumes:
       - ./backend:/home/ray/backend
 

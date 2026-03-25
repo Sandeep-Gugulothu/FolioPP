@@ -55,6 +55,9 @@ desktop.ini
 # IDE
 .idea/
 .vscode/
+
+# Models
+# backend/models/
 *.swp
 *.swo
 .project

@@ -1,0 +1,16 @@
+[project]
+name = "foliopp-core"
+version = "0.1.0"
+description = "Core provider abstractions and standard models for FolioPP"
+requires-python = ">=3.10"
+dependencies = [
+    "pydantic>=2.0.0",
+    "python-dateutil>=2.8.2",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["foliopp_core"]

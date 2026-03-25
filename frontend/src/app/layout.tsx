@@ -1,9 +1,15 @@
 import "./css/style.css";
-import { Inter } from "next/font/google";
+import { Outfit, EB_Garamond } from "next/font/google";
 
-const inter = Inter({
+const outfit = Outfit({
   subsets: ["latin"],
-  variable: "--font-inter",
+  variable: "--outfit-font",
+  display: "swap",
+});
+
+const fontSerif = EB_Garamond({
+  subsets: ["latin"],
+  variable: "--font-serif",
   display: "swap",
 });
 
@@ -20,7 +26,8 @@ export default function RootLayout({
   return (
     <html lang="en" className="scroll-smooth">
       <body
-        className={`${inter.variable} bg-gray-50 font-inter tracking-tight text-gray-900 antialiased`}
+        className={`${outfit.variable} ${fontSerif.variable} bg-primary-bg tracking-tight text-primary-text antialiased`}
+        style={{ fontFamily: 'var(--outfit-font), sans-serif' }}
       >
         <div className="flex min-h-screen flex-col overflow-hidden supports-[overflow:clip]:overflow-clip">
           {children}
