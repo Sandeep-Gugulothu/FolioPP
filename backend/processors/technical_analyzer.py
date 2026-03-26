@@ -20,7 +20,7 @@ class TechnicalAnalyzer:
         def initialize(cls, data: pd.DataFrame):
             """Initialize with OHLCV data."""
             # Ensure columns are lowercase for our math
-            data.columns = [c.lower() for c in data.columns]
+            data.columns = [str(c).lower() for c in data.columns]
             cls.data = data.copy()
 
         @classmethod
@@ -140,28 +140,49 @@ class TechnicalAnalyzer:
             cls.data['macd_histogram'] = cls.data['macd'] - cls.data['macd_signal']
 
         @classmethod
+        def calculate_moving_averages(cls, windows=[20, 50, 100, 200]):
+            """Calculate institutional SMA baselines."""
+            for w in windows:
+                cls.data[f'sma_{w}'] = cls.data['prev_close'].rolling(window=w, min_periods=1).mean()
+
+        @classmethod
         def calculate_bollinger_bands(cls, 
                                     window1: int = 14, num_std1: float = 2.5,
                                     window2: int = 7, num_std2: float = 1.5):
-            """Calculate Bollinger Bands."""
-            cls.data['bb_middle'] = cls.data['prev_close'].rolling(window=window1).mean()
+            """Calculate Bollinger Bands (uses bb_middle for SMA14)."""
+            cls.data['bb_middle'] = cls.data['prev_close'].rolling(window=window1, min_periods=1).mean()
             rolling_std1 = cls.data['prev_close'].rolling(window=window1).std()
             cls.data['bb_upper'] = cls.data['bb_middle'] + (rolling_std1 * num_std1)
             cls.data['bb_lower'] = cls.data['bb_middle'] - (rolling_std1 * num_std1)
 
         @classmethod
         def identify_regimes(cls, window: int = 5, delta: float = 0.8, h_factor=1.5):
-            """Identify market regimes."""
+            """Identify market regimes with fallbacks for short datasets."""
             rolling_sigma = cls.data['prev_close'].rolling(window=window).std()
-            k = delta * rolling_sigma
             rolling_h = h_factor * rolling_sigma
+            
+            # Primary Neural-Quant Conditions (Requires Hurst/FDI)
+            cond_bull = (cls.data['cusum_hi'] > rolling_h) & (cls.data['hurst'] > 0.5) & (cls.data['fdi'] < 1.5)
+            cond_bear = (cls.data['cusum_lo'] > rolling_h) & (cls.data['hurst'] > 0.5) & (cls.data['fdi'] < 1.5)
+            
+            # Secondary Fallback: SMA Cross & RSI
+            # Used if Hurst/FDI are NaN (common in short history)
+            price = cls.data['prev_close']
+            sma20 = cls.data.get('sma_20', price)
+            rsi14 = cls.data.get('rsi_14', 50)
+            
+            fallback_bull = (price > sma20) & (rsi14 > 55)
+            fallback_bear = (price < sma20) & (rsi14 < 45)
+
             cls.data['regime'] = np.select(
                 [
-                    (cls.data['cusum_hi'] > rolling_h) & (cls.data['hurst'] > 0.5) & (cls.data['fdi'] < 1.5),
-                    (cls.data['cusum_lo'] > rolling_h) & (cls.data['hurst'] > 0.5) & (cls.data['fdi'] < 1.5)
+                    cond_bull,
+                    cond_bear,
+                    (cls.data['hurst'].isna() | cls.data['fdi'].isna()) & fallback_bull,
+                    (cls.data['hurst'].isna() | cls.data['fdi'].isna()) & fallback_bear
                 ],
-                ['bullish', 'bearish'],
-                default='No Trend'
+                ['Bullish (Neural)', 'Bearish (Neural)', 'Bullish (Trend)', 'Bearish (Trend)'],
+                default='Neutral (No Trend)'
             )
 
     @classmethod
@@ -183,6 +204,7 @@ class TechnicalAnalyzer:
         cls.Indicators.calculate_supertrend()
         cls.Indicators.calculate_rsi()
         cls.Indicators.calculate_macd()
+        cls.Indicators.calculate_moving_averages() 
         cls.Indicators.calculate_bollinger_bands()
         cls.Indicators.identify_regimes()
         return cls.Indicators.data
@@ -211,20 +233,20 @@ class TechnicalAnalyzer:
             decreasing_line_color='#f43f5e'
         ), row=1, col=1)
 
-        # 2. 🌫️ Kalman Smoothed Price
+        # 2. Kalman Smoothed Price
         if 'prev_filtered_close' in df.columns:
             fig.add_trace(go.Scatter(x=df['date'], y=df['prev_filtered_close'], name='Kalman Filter', line=dict(color='#8b5cf6', width=1.5)), row=1, col=1)
 
-        # 3. ☄️ Supertrend Overlay
+        # 3. Supertrend Overlay
         if 'supertrend' in df.columns:
             fig.add_trace(go.Scatter(x=df['date'], y=df['supertrend'], name='Supertrend', mode='lines', line=dict(width=2, color='#fcd34d')), row=1, col=1)
 
-        # 4. 🌫️ Bollinger Bands
+        # 4. Bollinger Bands
         if 'bb_upper' in df.columns:
             fig.add_trace(go.Scatter(x=df['date'], y=df['bb_upper'], name='BB Upper', line=dict(color='rgba(255,255,255,0.2)', width=0.5), showlegend=False), row=1, col=1)
             fig.add_trace(go.Scatter(x=df['date'], y=df['bb_lower'], name='BB Lower', fill='tonexty', fillcolor='rgba(255,255,255,0.03)', line=dict(color='rgba(255,255,255,0.2)', width=0.5), showlegend=False), row=1, col=1)
 
-        # 5. 🌊 RSI (Dual-Band) In Subplot
+        # 5. RSI (Dual-Band) In Subplot
         if 'rsi_14' in df.columns:
             fig.add_trace(go.Scatter(x=df['date'], y=df['rsi_14'], name='RSI 14', line=dict(color='#c084fc', width=1.5)), row=2, col=1)
             if 'rsi_7' in df.columns:
@@ -233,7 +255,7 @@ class TechnicalAnalyzer:
             fig.add_hline(y=70, line_dash="dash", line_color="rgba(244,63,94,0.3)", row=2, col=1)
             fig.add_hline(y=30, line_dash="dash", line_color="rgba(16,185,129,0.3)", row=2, col=1)
 
-        # 🎯 Matte Styling
+        # Matte Styling
         fig.update_layout(
             template='plotly_dark',
             plot_bgcolor='rgba(0,0,0,0)',

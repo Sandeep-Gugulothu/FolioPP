@@ -1,6 +1,6 @@
 """NSE India Standard Models."""
 
-from datetime import date as dateType
+from datetime import date as dateType, datetime
 from typing import Literal
 
 from pydantic import Field, field_validator
@@ -323,3 +323,143 @@ class IndexHistoricalData(Data):
 
 class IndexHistoricalQueryParams(NSEDateRangeQueryParams):
     index_name: str = Field(description="NSE Index Name e.g. NIFTY 50")
+
+# ── Corporate Announcements ───────────────────────────────────────────────────
+
+class CorporateAnnouncementData(Data):
+    symbol: str
+    company_name: str | None = Field(default=None)
+    subject: str | None = Field(default=None)
+    details: str | None = Field(default=None)
+    broadcast_date: dateType | datetime | None = Field(default=None)
+    attainment_date: dateType | datetime | None = Field(default=None)
+    attachment_link: str | None = Field(default=None)
+
+
+class CorporateAnnouncementQueryParams(NSEDateRangeQueryParams):
+    symbol: str | None = Field(default=None)
+
+
+# ── Board Meetings ────────────────────────────────────────────────────────────
+
+class BoardMeetingData(Data):
+    symbol: str
+    company_name: str | None = Field(default=None)
+    bm_date: dateType | None = Field(default=None)
+    purpose: str | None = Field(default=None)
+    details: str | None = Field(default=None)
+
+
+class BoardMeetingQueryParams(NSEDateRangeQueryParams):
+    symbol: str | None = Field(default=None)
+
+
+# ── Shareholding Pattern ───────────────────────────────────────────────────────
+
+class ShareholdingPatternData(Data):
+    symbol: str
+    company_name: str | None = Field(default=None)
+    quarter_ending: str | None = Field(default=None)
+    promoter_holding: float | None = Field(default=None)
+    public_holding: float | None = Field(default=None)
+    other_holding: float | None = Field(default=None)
+    total_shares: float | None = Field(default=None)
+    details_url: str | None = Field(default=None)
+
+
+class ShareholdingPatternQueryParams(QueryParams):
+    symbol: str
+
+
+# ── Shareholding Pattern SDD ───────────────────────────────────────────────────
+
+class ShareholdingPatternSDDData(Data):
+    symbol: str
+    company_name: str | None = Field(default=None)
+    pan_number: str | None = Field(default=None)
+    shares_held: float | None = Field(default=None)
+    percentage_holding: float | None = Field(default=None)
+    date_of_reporting: dateType | None = Field(default=None)
+    is_promoter_group: bool = Field(default=False)
+
+
+class ShareholdingPatternSDDQueryParams(QueryParams):
+    symbol: str
+
+
+# ── Issuer Offer Documents ──────────────────────────────────────────────────────
+
+class IssuerOfferDocumentData(Data):
+    symbol: str | None = Field(default=None)
+    company_name: str | None = Field(default=None)
+    issue_type: str | None = Field(default=None)
+    issue_period: str | None = Field(default=None)
+    ipo_status: str | None = Field(default=None)
+    document_link: str | None = Field(default=None)
+    listing_date: str | None = Field(default=None)
+
+
+class IssuerOfferDocumentQueryParams(QueryParams):
+    symbol: str | None = Field(default=None)
+
+
+# ── Integrated Filings ─────────────────────────────────────────────────────────
+
+class IntegratedFilingData(Data):
+    symbol: str
+    company_name: str | None = Field(default=None)
+    filing_type: str | None = Field(default=None) # Financials or Governance
+    period: str | None = Field(default=None)
+    submission_date: dateType | None = Field(default=None)
+    xbrl_link: str | None = Field(default=None)
+    pdf_link: str | None = Field(default=None)
+
+
+class IntegratedFilingQueryParams(NSEDateRangeQueryParams):
+    symbol: str | None = Field(default=None)
+
+
+# ── Scheme of Arrangement ──────────────────────────────────────────────────────
+
+class SchemeOfArrangementData(Data):
+    symbol: str
+    company_name: str | None = Field(default=None)
+    subject: str | None = Field(default=None)
+    filing_date: dateType | None = Field(default=None)
+    document_link: str | None = Field(default=None)
+
+
+class SchemeOfArrangementQueryParams(NSEDateRangeQueryParams):
+    symbol: str | None = Field(default=None)
+
+
+# ── Insider Trading ────────────────────────────────────────────────────────────
+
+class InsiderTradingData(Data):
+    symbol: str
+    company_name: str | None = Field(default=None)
+    acquirer_name: str | None = Field(default=None)
+    category_of_person: str | None = Field(default=None)
+    transaction_type: str | None = Field(default=None)
+    shares_quantity: float | None = Field(default=None)
+    value_of_shares: float | None = Field(default=None)
+    transaction_date: dateType | None = Field(default=None)
+    broadcast_date: dateType | None = Field(default=None)
+
+
+class InsiderTradingQueryParams(NSEDateRangeQueryParams):
+    symbol: str | None = Field(default=None)
+
+
+# ── Postal Ballot ──────────────────────────────────────────────────────────────
+
+class PostalBallotData(Data):
+    symbol: str
+    company_name: str | None = Field(default=None)
+    purpose: str | None = Field(default=None)
+    broadcast_date: dateType | None = Field(default=None)
+    attachment_link: str | None = Field(default=None)
+
+
+class PostalBallotQueryParams(NSEDateRangeQueryParams):
+    symbol: str | None = Field(default=None)

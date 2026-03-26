@@ -55,3 +55,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Trained and tested FolioGPT model it is becoming too heavy to run on the local environment so we are planning to use the Groq API for the AI.
 - Implemented the Market Classifier module that will be used to classify the market news and extract features from it.
 - Implemented the technical analysis tab that will be used to analyze the technical indicators of the stock.
+
+## [0.2.3] - 2026-03-26
+
+## Added
+- Necessary modules required from the nse.
+- Proper Test files to the incoming data.
+
+## Modified
+- Fixed the previous not working or NA data.

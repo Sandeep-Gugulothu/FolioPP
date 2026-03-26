@@ -41,3 +41,52 @@ class KnowledgeNode(Base):
     vector_id = Column(String)    # Qdrant point id
     graph_id = Column(String)     # Neo4j node id
     last_updated = Column(DateTime, default=datetime.utcnow)
+
+class PortfolioEntry(Base):
+    __tablename__ = "portfolio_entries"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    symbol = Column(String, index=True)
+    units = Column(Integer)
+    avg_price = Column(Float)
+    sector = Column(String)
+    last_updated = Column(DateTime, default=datetime.utcnow)
+
+class NSETicker(Base):
+    __tablename__ = "nse_tickers"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    symbol = Column(String, index=True, unique=True)
+    name = Column(String)
+    sector = Column(String)
+    market_cap = Column(Float, nullable=True)
+    market_cap_bucket = Column(String, nullable=True) # Large Cap, Mid Cap, Small Cap
+
+class User(Base):
+    __tablename__ = "users"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    username = Column(String, unique=True, index=True)
+    email = Column(String, unique=True, index=True)
+    hashed_password = Column(String)
+    is_active = Column(Boolean, default=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+class AuditLog(Base):
+    __tablename__ = "audit_logs"
+    
+    id = Column(Integer, primary_key=True)
+    user_id = Column(Integer, ForeignKey("users.id"))
+    action = Column(String)
+    timestamp = Column(DateTime, default=datetime.utcnow)
+    details = Column(String)
+
+class ChatMessage(Base):
+    __tablename__ = "chat_messages"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    session_id = Column(String, index=True)
+    role = Column(String)  # user, assistant
+    content = Column(String, nullable=False)
+    thoughts = Column(JSON, nullable=True)
+    timestamp = Column(DateTime, default=datetime.utcnow)

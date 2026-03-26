@@ -81,8 +81,18 @@ class NSEBulkBlockDealFetcher(
             "QuantityTraded": "quantity", "TradePrice/Wght.Avg.Price": "price",
         }
         results = []
+        # --- Symbol Filtering ---
+        target = query.symbol.upper() if getattr(query, "symbol", None) else None
+        
         for row in data:
             mapped = {col_map.get(k, k): v for k, v in row.items() if v not in (None, "-", "")}
+            
+            # Filter by symbol if requested
+            if target:
+                row_sym = str(mapped.get("symbol", "")).upper()
+                if target not in row_sym: # Supports partial match (e.g. SBIN matches SBIN.NS)
+                    continue
+
             mapped["deal_type"] = query.deal_type
             
             # --- Track 6: Intelligence Signaling Logic ---

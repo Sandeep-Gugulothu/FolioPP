@@ -35,6 +35,10 @@ class Settings(BaseSettings):
     # Scalability (Phase 4)
     RAY_ADDRESS: str = "auto"
 
-    model_config = SettingsConfigDict(env_file=".env", extra="ignore")
+    model_config = SettingsConfigDict(
+        env_file=os.path.join(os.path.dirname(os.path.abspath(__file__)), ".env"),
+        env_file_encoding="utf-8",
+        extra="ignore"
+    )
 
 settings = Settings()
