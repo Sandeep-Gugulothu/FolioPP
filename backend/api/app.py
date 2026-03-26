@@ -1,6 +1,7 @@
 """FolioPP FastAPI backend - Institutional 4-Phase Architecture."""
 
 from fastapi import FastAPI, HTTPException, Query
+from datetime import datetime
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi_cache import FastAPICache
 from fastapi_cache.backends.redis import RedisBackend
@@ -10,6 +11,12 @@ from fastapi_cache.decorator import cache
 from backend.config import settings
 from backend.clients.redis import redis_client
 from backend.agents.market_agent import market_agent
+from backend.clients.postgres import get_db
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select, delete
+from fastapi import Depends
+from backend.core.foliopp_core.database.models import PortfolioEntry, NSETicker, User, BulkDeal, IngestedBatch, AuditLog
+from sqlalchemy import func
 
 # Provider Imports
 from foliopp_yfinance.models.equity_quote import YFinanceEquityQuoteFetcher
@@ -27,9 +34,7 @@ from foliopp_nse.models.india_vix import NSEIndiaVixFetcher
 from foliopp_nse.models.corporate_actions import NSECorporateActionFetcher
 from foliopp_nse.models.event_calendar import NSEEventCalendarFetcher
 from foliopp_nse.models.market_movers import NSEMarketMoverFetcher, NSEIndexSnapshotFetcher
-from foliopp_nse.models.index_historical import NSEIndexHistoricalFetcher
 from foliopp_nse.models.short_selling import NSEShortSellingFetcher
-from foliopp_nse.models.pe_ratio import NSEPERatioFetcher
 from foliopp_nse.models.price_volume import NSEPriceVolumeFetcher
 from foliopp_nse.models.financial_results import NSEFinancialResultFetcher
 from foliopp_nse.models.most_active import NSEMostActiveFetcher
@@ -57,35 +62,20 @@ async def startup():
     redis = await redis_client.connect()
     FastAPICache.init(RedisBackend(redis), prefix="foliopp-cache")
     
+    # Ensure PostgreSQL tables exist (Institutional Persistence)
+    try:
+        from backend.clients.postgres import engine, Base
+        from backend.core.foliopp_core.database import models # Ensure registration
+        async with engine.begin() as conn:
+            await conn.run_sync(Base.metadata.create_all)
+    except Exception as e:
+        print(f"Postgres Sync Warning: {e}")
+
     # Ensure MinIO bucket exists for Phase 1 Ingestion
     from backend.clients.minio import minio_client
     await minio_client.ensure_bucket(settings.MINIO_BUCKET_RAW)
 
-@app.get("/")
-async def root():
-    return {"status": "Institutional Terminal Backend - 4 Phase Architecture Active"}
-
-# ── Intelligence Layer (Phase 3) ─────────────────────────────────────────────
-
-@app.post("/intelligence/run")
-async def run_analysis(payload: dict):
-    """Executes AI-generated Python code and returns the plot/output."""
-    from backend.api.executor import execute_python_plot
-    code = payload.get("code", "")
-    if not code:
-        raise HTTPException(status_code=400, detail="No code provided")
-    
-    result = execute_python_plot(code)
-    return result
-
-@app.get("/intelligence/chat")
-async def chat(query: str):
-    """Orchestrates AI reasoning using the new MarketAgent with streaming."""
-    from fastapi.responses import StreamingResponse
-    try:
-        return StreamingResponse(market_agent.chat_stream(query), media_type="text/plain")
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+# Endpoints are decentralized but maintained at the end of the file or in dedicated routers.
 
 # ── Equity Provider Endpoints ────────────────────────────────────────────────
 
@@ -461,23 +451,6 @@ async def nse_indices():
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@app.get("/nse/index-history")
-@cache(expire=600)
-async def nse_index_history(
-    index_name: str = Query(...),
-    from_date: str = Query(None),
-    to_date: str = Query(None),
-    period: str = Query("1M"),
-):
-    try:
-        result = await NSEIndexHistoricalFetcher.fetch_data(
-            {"index_name": index_name, "from_date": from_date, "to_date": to_date, "period": period}, {}
-        )
-        return [r.model_dump() for r in result]
-    except EmptyDataError as e:
-        raise HTTPException(status_code=404, detail=str(e))
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
 
 
 @app.get("/nse/short-selling")
@@ -498,16 +471,6 @@ async def nse_short_selling(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@app.get("/nse/pe-ratio")
-@cache(expire=3600)
-async def nse_pe_ratio(trade_date: str = Query(...)):
-    try:
-        result = await NSEPERatioFetcher.fetch_data({"trade_date": trade_date}, {})
-        return [r.model_dump() for r in result]
-    except EmptyDataError as e:
-        raise HTTPException(status_code=404, detail=str(e))
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
 
 
 @app.get("/nse/price-volume")
@@ -600,6 +563,117 @@ async def nse_index_constituents(index_name: str = Query(...)):
 
 # ── INDmoney Provider Endpoints ───────────────────────────────────────────────
 
+# ── Portfolio Management (Institutional Persistence) ───────────────────
+
+@app.get("/api/portfolio")
+async def get_portfolio(db: AsyncSession = Depends(get_db)):
+    """Retrieve all holdings with real-time P&L calculation."""
+    stmt = select(PortfolioEntry)
+    result = await db.execute(stmt)
+    holdings = result.scalars().all()
+    
+    enriched = []
+    for h in holdings:
+        try:
+            quote = await YFinanceEquityQuoteFetcher.fetch_data({"symbol": h.symbol}, {})
+            current_price = float(quote.price or 0)
+            pnl = (current_price - h.avg_price) * h.units
+            enriched.append({
+                "symbol": h.symbol,
+                "units": h.units,
+                "avg_price": h.avg_price,
+                "current_price": current_price,
+                "pnl": pnl,
+                "pnl_pct": (pnl / (h.avg_price * h.units)) * 100 if h.avg_price > 0 else 0,
+                "sector": h.sector
+            })
+        except:
+            enriched.append({
+                "symbol": h.symbol, "units": h.units, "avg_price": h.avg_price,
+                "current_price": h.avg_price, "pnl": 0, "pnl_pct": 0, "sector": h.sector
+            })
+    return enriched
+
+@app.post("/api/portfolio")
+async def add_holding(data: dict, db: AsyncSession = Depends(get_db)):
+    """Add a new institutional investment to the DB."""
+    symbol = data["symbol"]
+    avg_price = data.get("avg_price")
+    
+    # 📡 Fallback: If no price given, use LTP
+    if not avg_price:
+        try:
+            quote = await YFinanceEquityQuoteFetcher.fetch_data({"symbol": symbol}, {})
+            avg_price = float(quote.price or 0)
+        except:
+            avg_price = 0
+            
+    entry = PortfolioEntry(
+        symbol=symbol,
+        units=data["units"],
+        avg_price=avg_price,
+        sector=data.get("sector", "Various")
+    )
+    db.add(entry)
+    await db.commit()
+    return {"status": "success", "id": entry.id}
+
+@app.delete("/api/portfolio/{symbol}")
+async def delete_holding(symbol: str, db: AsyncSession = Depends(get_db)):
+    """Remove a counter from the institutional tracker."""
+    await db.execute(delete(PortfolioEntry).where(PortfolioEntry.symbol == symbol))
+    await db.commit()
+    return {"status": "success"}
+
+@app.get("/api/tickers/search")
+async def search_tickers(q: str = Query(...), db: AsyncSession = Depends(get_db)):
+    """Institutional Autocomplete for valid NSE/NASDAQ tickers."""
+    stmt = select(NSETicker).where(NSETicker.symbol.ilike(f"%{q}%")).limit(10)
+    result = await db.execute(stmt)
+    return [{"symbol": t.symbol, "name": t.name} for t in result.scalars().all()]
+
+@app.get("/api/admin/stats")
+async def get_admin_stats(db: AsyncSession = Depends(get_db)):
+    """Institutional System Status & DB Overview."""
+    stats = {}
+    models = {
+        "users": User,
+        "portfolio": PortfolioEntry,
+        "tickers": NSETicker,
+        "bulk_deals": BulkDeal,
+        "raw_batches": IngestedBatch,
+        "audit_logs": AuditLog
+    }
+    for key, model in models.items():
+        res = await db.execute(select(func.count()).select_from(model))
+        stats[key] = res.scalar()
+    
+    # Add system health mock (would be real in production)
+    stats["latency"] = "14ms"
+    stats["api_status"] = "HEALTHY"
+    stats["last_sync"] = datetime.utcnow().isoformat()
+    return stats
+
+@app.get("/api/admin/raw/tickers")
+async def get_raw_tickers(skip: int = 0, limit: int = 100, db: AsyncSession = Depends(get_db)):
+    """Retrieve raw ticker metadata for technical audit."""
+    stmt = select(NSETicker).offset(skip).limit(limit)
+    result = await db.execute(stmt)
+    return result.scalars().all()
+
+@app.get("/api/admin/raw/deals")
+async def get_raw_deals(skip: int = 0, limit: int = 100, db: AsyncSession = Depends(get_db)):
+    """Retrieve raw Bulk/Block deals for technical audit."""
+    stmt = select(BulkDeal).order_by(BulkDeal.trade_date.desc()).offset(skip).limit(limit)
+    result = await db.execute(stmt)
+    return result.scalars().all()
+
+@app.get("/api/admin/raw/tickers/all")
+async def get_all_tickers(db: AsyncSession = Depends(get_db)):
+    """Retrieve all ticker metadata for raw dump."""
+    stmt = select(NSETicker)
+    result = await db.execute(stmt)
+    return result.scalars().all()
 @app.get("/indmoney/historical")
 @cache(expire=600)
 async def indmoney_historical(
@@ -626,6 +700,48 @@ async def indmoney_historical(
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
+
+# Serving initialization is handled at the end of the file.
+@app.get("/")
+async def root():
+    return {"status": "Institutional Terminal Backend - 4 Phase Architecture Active"}
+
+@app.post("/intelligence/run")
+async def run_analysis(payload: dict):
+    """Executes AI-generated Python code and returns the plot/output (Phase 3)."""
+    from backend.api.executor import execute_python_plot
+    code = payload.get("code", "")
+    if not code:
+        raise HTTPException(status_code=400, detail="No code provided")
+    result = execute_python_plot(code)
+    return result
+
+# ── Intelligence Persistent History ──────────────────────────────────────────
+
+@app.get("/intelligence/history")
+async def get_chat_history(session_id: str = Query("default"), db: AsyncSession = Depends(get_db)):
+    """Retrieve institutional chat history for a research session."""
+    from backend.core.foliopp_core.database.models import ChatMessage
+    stmt = (
+        select(ChatMessage)
+        .where(ChatMessage.session_id == session_id)
+        .order_by(ChatMessage.timestamp.asc()) # Chronological for UI
+    )
+    result = await db.execute(stmt)
+    messages = result.scalars().all()
+    return [{"role": m.role, "content": m.content, "thoughts": m.thoughts, "timestamp": m.timestamp} for m in messages]
+
+@app.get("/intelligence/chat")
+async def chat(query: str, session_id: str = Query("default"), active_symbol: str = Query(None)):
+    """Orchestrates AI reasoning with persistent session context."""
+    from fastapi.responses import StreamingResponse
+    try:
+        return StreamingResponse(
+            market_agent.chat_stream(query, active_symbol=active_symbol, session_id=session_id), 
+            media_type="text/plain"
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 if __name__ == "__main__":
     import uvicorn

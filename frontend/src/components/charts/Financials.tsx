@@ -6,11 +6,12 @@ interface FinancialsProps {
   symbol: string;
   exchange?: string;
   initialTab?: "Income" | "Balance" | "Cash";
+  theme?: 'light' | 'dark';
 }
 
 type TabType = "Income" | "Balance" | "Cash";
 
-export const Financials: React.FC<FinancialsProps> = ({ symbol, exchange = "NSE", initialTab = "Income" }) => {
+export const Financials: React.FC<FinancialsProps> = ({ symbol, exchange = "NSE", initialTab = "Income", theme = "dark" }) => {
   const [activeTab, setActiveTab] = useState<TabType>(initialTab as TabType);
   const [data, setData] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
