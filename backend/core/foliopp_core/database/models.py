@@ -90,3 +90,27 @@ class ChatMessage(Base):
     content = Column(String, nullable=False)
     thoughts = Column(JSON, nullable=True)
     timestamp = Column(DateTime, default=datetime.utcnow)
+
+class DRLDecision(Base):
+    """
+    Experience Replay Table for DRL Training.
+    Stores the State(St), Action(At), and calculated Reward(Rt).
+    """
+    __tablename__ = "drl_decisions"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    symbol = Column(String, index=True)
+    agent_type = Column(String) # PPO, A2C, SAC
+    
+    # State(St)
+    state_json = Column(JSON) # Combined Tech + NLP + Portfolio data
+    news_hash = Column(String, index=True) # SHA-256 for news-driven deduplication
+    
+    # Action(At)
+    action = Column(String) # BUY, SELL, HOLD
+    confidence = Column(Float)
+    
+    # Reward(Rt) - Initially Null, updated after 24H
+    reward = Column(Float, nullable=True) 
+    
+    timestamp = Column(DateTime, default=datetime.utcnow)

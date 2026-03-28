@@ -1,0 +1,207 @@
+--- [NSE] Ultra 23-Model Data Audit: RELIANCE ---
+[OK] 1. Bulk_Block: Received 0 items.
+[OK] 2. Corp_Action: Received 1 items.
+[OK] 3. Deliverable: Received 4 items.
+[OK] 4. Event_Cal: Received 164 items.
+[OK] 5. FII_DII: Received 2 items.
+[OK] 6. Financials: Received 111 items.
+[OK] 7. Fno_List: Received 206 items.
+[OK] 8. Index_Equity: Received 51 items.
+[OK] 9. India_Vix: Received 4 items.
+[OK] 10. Movers: Received 87 items.
+[OK] 11. Most_Active: Received 20 items.
+[OK] 12. Price_Vol: Received 4 items.
+[OK] 13. Short_Sell: Received 397 items.
+[OK] 14. Total_Traded: Received 1 items.
+[OK] 15. Announcements: Received 8 items.
+[OK] 16. Board_Meet: Received 8 items.
+[OK] 17. Shareholding: Received 89 items.
+
+--- [Deep Dive] Sample Results from Loaded Data ---
+
+[2. CORP_ACTION]
+{
+  "symbol": "RELIANCE",
+  "company_name": "Reliance Industries Limited",
+  "series": "EQ",
+  "face_value": 10.0,
+  "purpose": "Dividend - Rs 5.5 Per Share",
+  "ex_date": "2025-08-14",
+  "record_date": "2025-08-14",
+  "bc_start_date": null,
+  "bc_end_date": null
+}
+
+[3. DELIVERABLE]
+{
+  "symbol": "RELIANCE",
+  "series": "EQ",
+  "date": "2026-03-27",
+  "prev_close": 1413.1,
+  "open": 1401.0,
+  "high": 1404.7,
+  "low": 1345.0,
+  "close": 1348.1,
+  "avg_price": 1359.97,
+  "total_traded_qty": 23266517.0,
+  "turnover": 31641734742.5,
+  "trades": 546051.0,
+  "deliverable_qty": 12576544.0,
+  "pct_delivery": 54.05
+}
+
+[4. EVENT_CAL]
+{
+  "symbol": "BEL",
+  "company_name": null,
+  "purpose": "Dividend",
+  "date": "2026-02-27",
+  "description": null
+}
+
+[5. FII_DII]
+{
+  "date": "2026-03-27",
+  "category": "DII",
+  "buy_value": 37579.14,
+  "sell_value": 34012.99,
+  "net_value": 3566.15
+}
+
+[6. FINANCIALS]
+{
+  "symbol": "VALUEIND",
+  "company_name": "Value Industries Limited",
+  "series": null,
+  "fin_period": "Quarterly",
+  "from_date": "2024-10-01",
+  "to_date": "2024-12-31",
+  "expenditure": null,
+  "income": null,
+  "profit_before_tax": null,
+  "profit_after_tax": null,
+  "eps": null,
+  "broadcast_date": null,
+  "xbrl_link": "https://nsearchives.nseindia.com/corporate/xbrl/-"
+}
+
+[7. FNO_LIST]
+{
+  "symbol": "HDFCBANK",
+  "company_name": "HDFC Bank Limited",
+  "series": "EQ",
+  "isin": "INE040A01034"
+}
+
+[8. INDEX_EQUITY]
+{
+  "symbol": "NIFTY 50",
+  "company_name": null,
+  "series": null,
+  "isin": null,
+  "industry": null
+}
+
+[9. INDIA_VIX]
+{
+  "date": "2026-03-23",
+  "open": 22.8125,
+  "high": 27.1725,
+  "low": 22.8125,
+  "close": 26.73,
+  "prev_close": 22.8125,
+  "change": 3.92,
+  "change_pct": 17.17
+}
+
+[10. MOVERS]
+{
+  "symbol": "ONGC",
+  "company_name": null,
+  "ltp": 281.1,
+  "change": null,
+  "change_pct": 4.03,
+  "volume": null,
+  "value": null,
+  "category": "NIFTY 50",
+  "mover_type": "gainer"
+}
+
+[11. MOST_ACTIVE]
+{
+  "symbol": "IDEA",
+  "company_name": null,
+  "ltp": 8.91,
+  "change": -1.44,
+  "change_pct": -1.44,
+  "volume": null,
+  "value": 4178270545.8,
+  "fetch_by": "volume"
+}
+
+[12. PRICE_VOL]
+{
+  "symbol": "RELIANCE",
+  "series": "EQ",
+  "date": "2026-03-27",
+  "prev_close": 1413.1,
+  "open": 1401.0,
+  "high": 1404.7,
+  "low": 1345.0,
+  "close": 1348.1,
+  "avg_price": 1359.97,
+  "total_traded_qty": 23266517.0,
+  "turnover": 31641734742.5,
+  "trades": 546051.0,
+  "deliverable_qty": 12576544.0,
+  "pct_delivery": 54.05
+}
+
+[13. SHORT_SELL]
+{
+  "date": "2026-03-23",
+  "symbol": "AEQUS",
+  "security_name": null,
+  "quantity": 50.0
+}
+
+[14. TOTAL_TRADED]
+{
+  "advances": 6,
+  "declines": 44,
+  "unchanged": 0,
+  "total": 50
+}
+
+[15. ANNOUNCEMENTS]
+{
+  "symbol": "RELIANCE",
+  "company_name": "Reliance Industries Limited",
+  "subject": "Statement",
+  "details": "Updates",
+  "broadcast_date": null,
+  "attainment_date": null,
+  "attachment_link": "https://nsearchives.nseindia.com/corporate/kavinavora_26032026224553_RIL_SE_260326.pdf"
+}
+
+[16. BOARD_MEET]
+{
+  "symbol": "RELIANCE",
+  "company_name": "Reliance Industries Limited",
+  "bm_date": "2026-01-16",
+  "purpose": "Board Meeting Intimation",
+  "details": "RELIANCE INDUSTRIES LIMITED has informed the Exchange about Board Meeting to be held on 16-Jan-2026 to inter-alia consider and approve the Unaudited Financial results of the Company for the Quarterly ended December 2025 ."
+}
+
+[17. SHAREHOLDING]
+{
+  "symbol": "RELIANCE",
+  "company_name": "Reliance Industries Limited",
+  "quarter_ending": "31-DEC-2025",
+  "promoter_holding": 50.01,
+  "public_holding": 49.99,
+  "other_holding": 0.0,
+  "total_shares": null,
+  "details_url": "https://nsearchives.nseindia.com/corporate/xbrl/SHP_1607627_21012026071311_WEB.xml"
+}
+

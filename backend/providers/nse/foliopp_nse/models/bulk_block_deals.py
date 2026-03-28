@@ -49,7 +49,7 @@ class NSEBulkBlockDealFetcher(
     ) -> list[dict]:
         import pandas as pd
         from io import BytesIO
-        from foliopp_nse.utils.helpers import nse_fetch, to_nse_date, NSE_BASE
+        from foliopp_nse.utils.helpers import nse_fetch, to_nse_date, NSE_BASE, safe_float
         from foliopp_core.provider.utils.errors import EmptyDataError
 
         from_date, to_date = _resolve_dates(query)
@@ -86,6 +86,10 @@ class NSEBulkBlockDealFetcher(
         
         for row in data:
             mapped = {col_map.get(k, k): v for k, v in row.items() if v not in (None, "-", "")}
+            
+            # Clean numerical fields (Remove commas)
+            if "quantity" in mapped: mapped["quantity"] = safe_float(mapped["quantity"])
+            if "price" in mapped: mapped["price"] = safe_float(mapped["price"])
             
             # Filter by symbol if requested
             if target:

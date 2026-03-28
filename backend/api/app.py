@@ -355,6 +355,28 @@ async def nse_deals(
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@app.get("/api/institutional/latest-bulk-deals")
+@cache(expire=3600)
+async def latest_market_bulk_deals(limit: int = Query(20)):
+    """
+    Returns market-wide institutional bulk deals for the streaming frontend panel.
+    Uses aggressive caching to prevent redundancy.
+    """
+    try:
+        from backend.core.foliopp_core.pipeline.nse_bulk_ingestion import bulk_ingestor
+        
+        # Pull 1 month of global deals (no symbol)
+        result = await bulk_ingestor.run({"period": "1M"})
+        
+        # Convert to list and sort by date desc
+        deals = [r.model_dump() for r in result]
+        sorted_deals = sorted(deals, key=lambda x: x.get('date', ''), reverse=True)
+        
+        return sorted_deals[:limit]
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @app.get("/nse/fii-dii")
 @cache(expire=3600)
 async def nse_fii_dii():
@@ -718,6 +740,24 @@ async def run_analysis(payload: dict):
 
 # ── Intelligence Persistent History ──────────────────────────────────────────
 
+@app.get("/intelligence/sessions")
+async def get_sessions(db: AsyncSession = Depends(get_db)):
+    """Return all unique research sessions with metadata."""
+    from backend.core.foliopp_core.database.models import ChatMessage
+    from sqlalchemy import func
+    stmt = (
+        select(
+            ChatMessage.session_id,
+            func.max(ChatMessage.timestamp).label("last_active"),
+            func.min(ChatMessage.content).label("title")
+        )
+        .group_by(ChatMessage.session_id)
+        .order_by(func.max(ChatMessage.timestamp).desc())
+    )
+    result = await db.execute(stmt)
+    sessions = result.all()
+    return [{"session_id": s[0], "last_active": s[1], "title": s[2][:40] + "..." if s[2] else "Untitled Research"} for s in sessions]
+
 @app.get("/intelligence/history")
 async def get_chat_history(session_id: str = Query("default"), db: AsyncSession = Depends(get_db)):
     """Retrieve institutional chat history for a research session."""
@@ -725,7 +765,7 @@ async def get_chat_history(session_id: str = Query("default"), db: AsyncSession 
     stmt = (
         select(ChatMessage)
         .where(ChatMessage.session_id == session_id)
-        .order_by(ChatMessage.timestamp.asc()) # Chronological for UI
+        .order_by(ChatMessage.timestamp.asc())
     )
     result = await db.execute(stmt)
     messages = result.scalars().all()

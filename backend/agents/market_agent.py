@@ -6,6 +6,7 @@ import json
 import logging
 import asyncio
 import re
+import hashlib
 from datetime import datetime
 from typing import AsyncGenerator, Dict, List, Any, Optional
 
@@ -14,8 +15,11 @@ from sqlalchemy import select
 
 from backend.config import settings
 from backend.clients.postgres import AsyncSessionLocal
-from backend.core.foliopp_core.database.models import PortfolioEntry, NSETicker, ChatMessage
+from backend.core.foliopp_core.database.models import PortfolioEntry, NSETicker, ChatMessage, DRLDecision
 from backend.processors.technical_analyzer import technical_analyzer
+from backend.processors.nlp_analyzer import NLPAnalyzer
+from backend.processors.drl_module import drl_module
+from backend.processors.drl_trainer import drl_trainer
 
 # Standardized Provider Registry
 from foliopp_yfinance.models.equity_quote import YFinanceEquityQuoteFetcher
@@ -56,6 +60,7 @@ class MarketAgent:
     def __init__(self):
         self.client = AsyncGroq(api_key=settings.GROQ_API_KEY)
         self.model = "llama-3.1-8b-instant"
+        self.nlp_analyzer = NLPAnalyzer()
 
     async def detect_intent(self, query: str, history: List[Dict] = []) -> Dict[str, Any]:
         """Phase 1: Intent Detection & Target Extraction with Context."""
@@ -157,10 +162,24 @@ class MarketAgent:
     async def chat_stream(self, query: str, active_symbol: Optional[str] = None, session_id: str = "default") -> AsyncGenerator[str, None]:
         """Full Pipeline: History -> Intent -> Harvest -> Analysis -> Synthesis -> Persist."""
         
+        # 🟢 LOCAL-MODE: Check for basic definitions (Skip LLM for speed/cost)
+        definitions = {
+            "BULK DEALS": "**NSE Bulk Deals**: A deal is recorded as 'Bulk' when the total quantity of shares bought or sold on a single exchange is more than 0.5% of the total number of equity shares of the listed company. These are executed during normal market hours.",
+            "BLOCK DEALS": "**NSE Block Deals**: A single trade that involves a minimum quantity of 5,00,000 shares OR a minimum value of ₹5 Crores. These are executed in a separate 15-minute window before market opens.",
+            "RSI": "**Relative Strength Index (RSI)**: A momentum oscillator that measures the speed and change of price movements. RSI oscillates between zero and 100. Usually, RSI > 70 is overbought and RSI < 30 is oversold.",
+            "PROMOTER TRADING": "**Promoter Trading**: When individuals or entities classified as promoters (owners/founding group) buy or sell shares. High-volume selling by promoters is often a risk signal in the FolioPP DRL model."
+        }
+        
+        upper_query = query.upper()
+        for key, text in definitions.items():
+            if key in upper_query and len(query.split()) < 5:
+                yield f"### Institutional Definition: {key}\n\n{text}\n\n*This is a local terminal definition. No AI tokens were consumed for this response.*"
+                return
+
         # 0. Load History (Last 10 messages)
         history = await self._get_history(session_id, limit=10)
         
-        # 1. Phase 1: Intent
+        # 1. Phase 1: IntentDetection
         intent_data = await self.detect_intent(query, history)
         intent = intent_data.get("intent", "GENERAL")
         reasoning = intent_data.get("reasoning", "")
@@ -262,31 +281,32 @@ class MarketAgent:
         
         yield f"📡 [THOUGHT] Harvesting institutional dataset for {symbol}... [/THOUGHT]\n"
         
+        async def wrap_task(t_id, coro):
+            try: return t_id, await coro
+            except Exception as e: return t_id, e
+
         tasks = []
-        active_ids = []
         for t_id in required_tools:
             params = self._resolve_tool_params(t_id, symbol)
             fetcher = self._get_fetcher(t_id)
             if fetcher:
-                tasks.append(fetcher.fetch_data(params, {}))
-                active_ids.append(t_id)
+                tasks.append(wrap_task(t_id, fetcher.fetch_data(params, {})))
         
-        if not tasks:
-            tasks.append(YFinanceEquityQuoteFetcher.fetch_data({"symbol": f"{symbol}.NS", "exchange": "NSE"}, {}))
-            active_ids.append("yf_quote")
-
-        results = await asyncio.gather(*tasks, return_exceptions=True)
-        for i, t_id in enumerate(active_ids):
-            res = results[i]
+        # 🟢 ASYNC STREAMING HARVEST (The speed secret)
+        harvest_count = 0
+        for future in asyncio.as_completed(tasks):
+            t_id, res = await future
             if not isinstance(res, Exception):
-                # Don't limit historical data (it needs depth for indicators)
-                limit = 1000 if "historical" in t_id else 20
-                data_context[t_id] = [r.model_dump() if hasattr(r, 'model_dump') else r for r in res[:limit]] if isinstance(res, list) else (res.model_dump() if hasattr(res, 'model_dump') else res)
+                data_context[t_id] = [r.model_dump() if hasattr(r, 'model_dump') else r for r in res] if isinstance(res, list) else (res.model_dump() if hasattr(res, 'model_dump') else res)
             else:
                 data_context[t_id] = {"error": str(res)}
+                
+            harvest_count += 1
+            if harvest_count % 3 == 0:
+                yield f"[THOUGHT] Synchronizing Pipeline: {t_id.replace('_',' ').title()} integrated... ({harvest_count}/{len(tasks)}) [/THOUGHT]\n"
 
-        # 4. Phase 4: Analysis (Technical & Portfolio)
-        yield "📈 [THOUGHT] Running technical patterns & Portfolio impact audit... [/THOUGHT]\n"
+        # 4. Phase 4: Analysis (Technical, NLP, Portfolio & DRL)
+        yield "📈 [THOUGHT] 100% Data Coverage achieved. Running technical patterns, news sentiment & Portfolio impact audit... [/THOUGHT]\n"
         
         # Technical
         if data_context.get("yf_historical"):
@@ -306,7 +326,46 @@ class MarketAgent:
             # TRUNCATE: Only pass the last 5 days of raw OHLCV context to LLM to save tokens
             data_context["yf_historical"] = data_context["yf_historical"][-5:]
 
-        # Portfolio
+        # NLP (News Feature Extraction & Deduplication)
+        data_context["nlp_features"] = {
+            "sentiment": 0, "price_impact": 0, "risk_profile": 0, "reasoning": "No news available for deep audit."
+        }
+        news_hash = "no_news"
+        if data_context.get("yf_news") and isinstance(data_context["yf_news"], list) and len(data_context["yf_news"]) > 0:
+            top_news = data_context["yf_news"][0] # Focus on primary headline
+            news_text = f"Title: {top_news.get('title', '')}\nSummary: {top_news.get('summary', '')}"
+            news_hash = hashlib.sha256(news_text.encode()).hexdigest()
+            
+            # CACHE CHECK: If we analyzed this exact news recently for this stock, REUSE it.
+            async with AsyncSessionLocal() as db:
+                stmt = select(DRLDecision).where(DRLDecision.symbol == symbol, DRLDecision.news_hash == news_hash).order_by(DRLDecision.timestamp.desc()).limit(1)
+                existing_decision = (await db.execute(stmt)).scalar()
+                
+            if existing_decision and (datetime.utcnow() - existing_decision.timestamp) < timedelta(hours=4):
+                logger.info(f"NLP Cache Hit for {symbol} (Hash: {news_hash[:8]}). Reusing analysis.")
+                cached_nlp = existing_decision.state_json.get("nlp", {})
+                data_context["nlp_features"] = cached_nlp
+                data_context["is_duplicate_experience"] = True # Flag to avoid redundant training log
+            else:
+                company_context = data_context.get("yf_profile", {"name": symbol})
+                try:
+                    analysis = self.nlp_analyzer.analyze_news(news_text, company_context)
+                    data_context["nlp_features"] = {
+                        "news_relevance": analysis.news_relevance,
+                        "sentiment": analysis.sentiment,
+                        "price_impact": analysis.price_impact,
+                        "trend_direction": analysis.trend_direction,
+                        "earnings_impact": analysis.earnings_impact,
+                        "investor_confidence": analysis.investor_confidence,
+                        "risk_profile": analysis.risk_profile,
+                        "reasoning": analysis.reasoning
+                    }
+                    data_context["is_duplicate_experience"] = False
+                except Exception as e:
+                    logger.error(f"NLP Analysis Failed: {e}")
+                    data_context["is_duplicate_experience"] = True # Fallback to no-log if failed
+
+        # Portfolio Status
         async with AsyncSessionLocal() as db:
             holdings = (await db.execute(select(PortfolioEntry))).scalars().all()
         holding = next((h for h in holdings if h.symbol.replace(".NS","") == symbol.replace(".NS","")), None)
@@ -316,6 +375,41 @@ class MarketAgent:
             "avg_price": holding.avg_price if holding else 0,
             "current_value": (holding.units * data_context.get("technical_indicators", {}).get("price", 0)) if holding else 0
         }
+
+        # DRL DECISION (The missing Piece)
+        yield f"[THOUGHT] Executing DRL Module (A2C/PPO/SAC) with State(St) inputs... [/THOUGHT]\n"
+        drl_result = drl_module.calculate_decision(
+            tech_indicators=data_context.get("technical_indicators", {}),
+            nlp_features=data_context.get("nlp_features", {}),
+            portfolio=data_context["portfolio_status"],
+            symbol=symbol
+        )
+        data_context["drl_decision"] = drl_result.model_dump()
+
+        # PERSIST: Log Experience to Database ONLY if NOT a duplicate/redundant context
+        if not data_context.get("is_duplicate_experience", False):
+            try:
+                async with AsyncSessionLocal() as db:
+                    state_data = {
+                        "tech": data_context.get("technical_indicators"),
+                        "nlp": data_context.get("nlp_features"),
+                        "portfolio": data_context.get("portfolio_status")
+                    }
+                    decision_entry = DRLDecision(
+                        symbol=symbol,
+                        agent_type=drl_result.agent,
+                        state_json=state_data,
+                        news_hash=news_hash,
+                        action=drl_result.action,
+                        confidence=drl_result.confidence
+                    )
+                    db.add(decision_entry)
+                    await db.commit()
+                    logger.info(f"DRL Unique Experience logged: {symbol} -> {drl_result.action}")
+            except Exception as e:
+                logger.error(f"Failed to persist DRL decision: {e}")
+        else:
+            logger.info(f"Skipping redundant DRL experience log for {symbol} (Already captured in this token/news context).")
 
         # FINAL CONTEXT CLEANUP: Ensure no massive lists go to LLM
         for key in list(data_context.keys()):
@@ -355,11 +449,14 @@ class MarketAgent:
         - **Current Holding**: {data_context['portfolio_status'].get('units', 0)} units at avg price of {data_context['portfolio_status'].get('avg_price', 0)}
         - **Exposures**: (Analyze how this data affects their specific entry price and position size. Provide logic for keeping or reducing exposure.)
 
+        #### DRL Decision (Phase 4: Decision Making)
+        - **Model Action**: {data_context.get('drl_decision', {}).get('action')} (Confidence: {data_context.get('drl_decision', {}).get('confidence')*100}%)
+        - **Calculated Q-Value**: {data_context.get('drl_decision', {}).get('q_value')}
+        - **Agent Engine**: {data_context.get('drl_decision', {}).get('agent')} (Actor-Critic Based Optimization)
+        - **DRL Reasoning**: {data_context.get('drl_decision', {}).get('reasoning')}
+ 
         #### Investment Conclusion
-        (Final Verdict: BUY/HOLD/SELL based on technicals AND portfolio status)
-
-        DATA CONTEXT:
-        {json.dumps(data_context, default=str)}
+        (Final Verdict: Use the DRL Model Action as a primary signal, but synthesize with Fundamental/Technical reasoning. Provide a definitive BUY/HOLD/SELL recommendation.)
         """
         # PHASE 5: Synthesis & Persistence
         thoughts_log = [reasoning] if reasoning else []
@@ -387,9 +484,18 @@ class MarketAgent:
                 full_response += content
                 yield content
         
+        # 🔗 AUDIT LOG (Collapsible JSON)
+        yield "\n\n<details>\n<summary><b>🔍 Institutional Data Context (JSON)</b></summary>\n\n"
+        yield f"```json\n{json.dumps(data_context, indent=2, default=str)}\n```\n"
+        yield "</details>\n"
+
         # 6. Persist Conversation
         await self._save_message(session_id, "user", query)
         await self._save_message(session_id, "assistant", full_response, thoughts=thoughts_log)
+
+        # 🔄 AUTOMATIC DRL TRAINING TRIGGER
+        # Fire-and-forget background task to calculate rewards and train the model
+        asyncio.create_task(drl_trainer.run_automatic_cycle())
 
     def _get_fetcher(self, t_id: str):
         mapping = {

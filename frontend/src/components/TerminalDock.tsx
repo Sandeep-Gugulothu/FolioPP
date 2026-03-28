@@ -43,6 +43,7 @@ import { ResearchChart } from "./panels/ResearchChart";
 import { Portfolio } from "./panels/Portfolio";
 import { PulseMonitor } from "./panels/PulseMonitor";
 import { SignalStream } from "./panels/SignalStream";
+import { BulkDealsStream } from "./panels/BulkDealsStream";
 import { MarketTreemap } from "./panels/MarketTreemap";
 import { MoversDashboard } from "./panels/MoversDashboard";
 import { PerformanceScatter } from "./panels/PerformanceScatter";
@@ -52,8 +53,8 @@ import "@/assets/styles/globals.css";
 
 const initialOverviewPanels: PanelState[] = [
   { id: 'info', title: 'Asset Information', symbol: 'SBIN', icon: 'History', x: 20, y: 15, w: 520, h: 320 },
-  { id: 'signals', title: 'Intelligence Stream', symbol: 'SBIN', icon: 'Newspaper', x: 20, y: 350, w: 520, h: 420 },
-  { id: 'profile', title: 'Institutional Profile', symbol: 'SBIN', icon: 'Info', x: 20, y: 785, w: 520, h: 520 },
+  { id: 'bulk_stream', title: 'Bulk Deals', symbol: 'ALL', icon: 'Activity', x: 20, y: 350, w: 520, h: 420 },
+  { id: 'signals', title: 'Intelligence Stream', symbol: 'SBIN', icon: 'Newspaper', x: 20, y: 785, w: 520, h: 420 },
   { id: 'performance', title: 'Market Performance', symbol: 'SBIN', icon: 'TrendingUp', x: 560, y: 15, w: 920, h: 700 },
 ];
 
@@ -370,7 +371,7 @@ export function TerminalDock() {
                     case 'performance_scatter': return <PerformanceScatter theme={theme} />;
                     case 'pulse': return <PulseMonitor theme={theme} />;
                     case 'news_monitor': return <News symbol={p.symbol} exchange={exchange} theme={theme} />;
-                    case 'signal_stream': return <SignalStream theme={theme} />;
+                    case 'bulk_stream': return <BulkDealsStream theme={theme} />;
                     case 'signals': return <News symbol={p.symbol} exchange={exchange} theme={theme} />;
                     case 'tech_chart': return <TechnicalChart symbol={p.symbol} exchange={exchange} theme={theme} />;
                     case 'info': return <Information symbol={p.symbol} exchange={exchange} theme={theme} />;
