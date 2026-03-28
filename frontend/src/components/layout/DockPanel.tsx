@@ -32,8 +32,6 @@ export const DockPanel: React.FC<DockPanelProps> = ({
   const isMinimized = p.minimized;
   const isMaximized = p.maximized;
 
-  // 🔹 Neural Icon Healing: Resolve Icon Component from Registry with ID-based Fallback
-  // This ensures if the localStorage has corrupted 'Sparkles' data, it heals to the correct ID icon
   let IconComponent = ICON_REGISTRY[p.icon];
   
   if (!IconComponent || p.icon === 'Sparkles') {
@@ -49,6 +47,8 @@ export const DockPanel: React.FC<DockPanelProps> = ({
      else IconComponent = History;
   }
 
+  const isLight = theme === 'light';
+
   return (
     <div
       onClick={onClick}
@@ -62,10 +62,10 @@ export const DockPanel: React.FC<DockPanelProps> = ({
       }}
       className={`
         bg-surface-bg border border-primary-border rounded-xl flex flex-col overflow-hidden transition-all duration-300
-        shadow-2xl opacity-100
+        shadow-2xl opacity-100 font-sans
       `}
     >
-      {/* 🔹 Institutional Header - Matte Finish (Highlighting Removed) */}
+      {/* 🔹 Institutional Header */}
       <div
         onMouseDown={(e) => onStartDrag(p.id, e, 'move')}
         className={`
@@ -73,23 +73,23 @@ export const DockPanel: React.FC<DockPanelProps> = ({
         `}
       >
         <div className="flex items-center gap-3">
-          <IconComponent size={13} className="text-secondary-text" />
-          <span style={{ fontFamily: 'var(--outfit-font)', opacity: 0.9 }} className="text-[10px] font-bold text-primary-text uppercase tracking-widest">{p.title}</span>
+          <IconComponent size={12} className="text-secondary-text opacity-40" />
+          <span className="text-[10px] font-black text-primary-text uppercase tracking-widest opacity-80">{p.title}</span>
         </div>
 
         <div className="flex items-center gap-1.5" onMouseDown={e => e.stopPropagation()}>
           <button 
             onClick={() => onAskAI?.(p.id, p.title)}
-            className="p-1.5 hover:bg-sky-500/10 hover:text-sky-400 text-primary-text/40 transition-all rounded-md group"
+            className="p-1.5 hover:bg-primary-text/10 text-primary-text/40 transition-all rounded-md group"
             title="Ask Neural Intelligence"
           >
-            <BrainCircuit size={13} className="group-hover:scale-110 transition-transform" />
+            <BrainCircuit size={12} className="group-hover:scale-110 transition-transform" />
           </button>
 
           <div className="w-px h-3 bg-primary-border mx-1" />
 
           <button onClick={() => onMinimize(p.id)} className="p-1.5 hover:bg-primary-text/5 text-primary-text/40 transition-colors rounded-md"><ChevronDown size={13} /></button>
-          <button onClick={() => onMaximize(p.id)} className={`p-1.5 transition-all rounded-md ${isMaximized ? 'bg-sky-500/10 text-sky-400' : 'text-primary-text/40 hover:bg-primary-text/5'}`}><Maximize2 size={13} /></button>
+          <button onClick={() => onMaximize(p.id)} className={`p-1.5 transition-all rounded-md ${isMaximized ? 'bg-primary-text/10 text-primary-text' : 'text-primary-text/40 hover:bg-primary-text/5'}`}><Maximize2 size={13} /></button>
           <button onClick={() => onClose(p.id)} className="p-1.5 hover:bg-rose-500/10 hover:text-rose-400 text-primary-text/40 transition-all rounded-md"><X size={13} /></button>
         </div>
       </div>

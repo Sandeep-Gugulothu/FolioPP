@@ -32,13 +32,13 @@ export const ValuationChart: React.FC<ValuationChartProps> = ({ symbol, exchange
   const basePEG = data?.peg_ratio || 1.2;
 
   const points = 20;
-  const timeline = Array.from({length: points}, (_, i) => `T - ${points - i}`);
-  
+  const timeline = Array.from({ length: points }, (_, i) => `T - ${points - i}`);
+
   const generateTrend = (base: number) => {
     let current = base * 0.8;
     return timeline.map(() => {
-        current = current + (Math.random() - 0.45) * (base * 0.1);
-        return current;
+      current = current + (Math.random() - 0.45) * (base * 0.1);
+      return current;
     });
   };
 
@@ -79,12 +79,12 @@ export const ValuationChart: React.FC<ValuationChartProps> = ({ symbol, exchange
           plot_bgcolor: 'rgba(0,0,0,0)',
           font: { color: '#ffffff44', family: 'Inter, sans-serif', size: 9 },
           margin: { l: 30, r: 10, t: 20, b: 30 },
-          xaxis: { 
-            gridcolor: 'rgba(255,255,255,0.03)', 
+          xaxis: {
+            gridcolor: 'rgba(255,255,255,0.03)',
             showticklabels: false,
             linecolor: 'rgba(255,255,255,0.05)'
           },
-          yaxis: { 
+          yaxis: {
             gridcolor: 'rgba(255,255,255,0.03)',
             tickfont: { size: 8 },
             linecolor: 'rgba(255,255,255,0.05)'

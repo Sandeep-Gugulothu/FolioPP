@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from "react";
 
-export const Profile: React.FC<{ symbol: string; exchange?: string }> = ({ symbol, exchange = "NSE" }) => {
+export const Profile: React.FC<{ symbol: string; exchange?: string; theme?: 'light' | 'dark' }> = ({ symbol, exchange = "NSE", theme = "dark" }) => {
   const [data, setData] = useState<any>(null);
   const [metrics, setMetrics] = useState<any>(null);
 

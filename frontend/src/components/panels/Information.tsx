@@ -2,7 +2,7 @@
 
 import React from "react";
 
-export const Information: React.FC<{ symbol: string; exchange?: string }> = ({ symbol, exchange = "NSE" }) => {
+export const Information: React.FC<{ symbol: string; exchange?: string; theme?: 'light' | 'dark' }> = ({ symbol, exchange = "NSE", theme = "dark" }) => {
   const [data, setData] = React.useState<any>(null);
 
   React.useEffect(() => {

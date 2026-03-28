@@ -40,11 +40,14 @@ export function useLayoutManager(initialPanels: PanelState[], storageKey?: strin
   const [activePanelId, setActivePanelId] = useState<string | null>(null);
   const dragRef = useRef<{ id: string, startX: number, startY: number, startWidth: number, startHeight: number, panelStartX: number, panelStartY: number, type: 'move' | 'resize' } | null>(null);
 
-  const isInitialized = useRef(false);
+  const isLoaded = useRef(false);
 
-  // 1. Load from Neural Memory (LocalStorage) on mount
+  // 1. Load from Memory (LocalStorage) on mount
   useEffect(() => {
-    if (typeof window === "undefined" || !storageKey) return;
+    if (typeof window === "undefined" || !storageKey) {
+      isLoaded.current = true;
+      return;
+    }
     const saved = localStorage.getItem(`foliopp_layout_${storageKey}`);
     if (saved) {
       try {
@@ -71,12 +74,12 @@ export function useLayoutManager(initialPanels: PanelState[], storageKey?: strin
         console.error("Failed to restore layout memory:", e);
       }
     }
-    isInitialized.current = true;
+    isLoaded.current = true;
   }, [storageKey]);
 
-  // 2. Mirror into Neural Memory whenever layout shifts
+  // 2. Mirror into Memory whenever layout shifts
   useEffect(() => {
-    if (typeof window === "undefined" || !storageKey || !isInitialized.current) return;
+    if (typeof window === "undefined" || !storageKey || !isLoaded.current) return;
     localStorage.setItem(`foliopp_layout_${storageKey}`, JSON.stringify(panels));
   }, [panels, storageKey]);
 
@@ -181,6 +184,7 @@ export function useLayoutManager(initialPanels: PanelState[], storageKey?: strin
   }), [resolveLayout]);
 
   const updateSymbols = useCallback((newSymbol: string) => {
+    if (!isLoaded.current) return;
     setPanels(prev => prev.map(p => ({ ...p, symbol: newSymbol.toUpperCase() })));
   }, []);
 

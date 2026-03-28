@@ -5,6 +5,18 @@ const nextConfig = {
     turbopack: {
         root: path.resolve(__dirname, '..'),
     },
+    async rewrites() {
+      return [
+        {
+          source: '/api/:path*',
+          destination: 'http://localhost:8000/api/:path*',
+        },
+        {
+          source: '/intelligence/:path*',
+          destination: 'http://localhost:8000/intelligence/:path*',
+        },
+      ];
+    },
 };
 
 module.exports = nextConfig;

@@ -9,9 +9,10 @@ const Plot = dynamic(() => import('react-plotly.js'), { ssr: false });
 interface TechnicalChartProps {
   symbol: string;
   exchange?: string;
+  theme?: 'light' | 'dark';
 }
 
-export const TechnicalChart: React.FC<TechnicalChartProps> = ({ symbol, exchange = "NSE" }) => {
+export const TechnicalChart: React.FC<TechnicalChartProps> = ({ symbol, exchange = "NSE", theme = "dark" }) => {
   const [plotData, setPlotData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -24,7 +25,7 @@ export const TechnicalChart: React.FC<TechnicalChartProps> = ({ symbol, exchange
         const response = await fetch(`http://localhost:8000/equity/technical-analysis?symbol=${symbol}&exchange=${exchange}`);
         if (!response.ok) throw new Error("Failed to synthesize technical chart");
         const json = await response.json();
-        
+
         if (json && !json.error) {
           setPlotData(json);
         } else {
@@ -45,7 +46,7 @@ export const TechnicalChart: React.FC<TechnicalChartProps> = ({ symbol, exchange
       <div className="h-full w-full flex items-center justify-center bg-background">
         <div className="flex flex-col items-center gap-4">
           <div className="w-8 h-8 border-2 border-primary-border/20 border-t-primary-text rounded-full animate-spin" />
-          <span className="text-[10px] font-black uppercase tracking-widest text-primary-text/40">Synthesizing Institutional Strategy...</span>
+          <span className="text-[11px] font-black uppercase tracking-widest text-primary-text/40">Synthesizing Institutional Strategy...</span>
         </div>
       </div>
     );
@@ -55,14 +56,16 @@ export const TechnicalChart: React.FC<TechnicalChartProps> = ({ symbol, exchange
     return (
       <div className="h-full w-full flex items-center justify-center bg-background p-8 text-center">
         <span className="text-rose-500/80 text-[10px] font-black uppercase tracking-widest leading-relaxed">
-           Technical Analysis Failure: {error}
+          Technical Analysis Failure: {error}
         </span>
       </div>
     );
   }
 
+  const isLight = theme === 'light';
+
   return (
-    <div className="h-full w-full bg-[#0a0a0a] overflow-hidden">
+    <div className={`h-full w-full overflow-hidden transition-colors ${isLight ? 'bg-white' : 'bg-[#0a0a0a]'}`}>
       {plotData && (
         <Plot
           data={plotData.data}
@@ -72,10 +75,26 @@ export const TechnicalChart: React.FC<TechnicalChartProps> = ({ symbol, exchange
             plot_bgcolor: 'transparent',
             paper_bgcolor: 'transparent',
             margin: { t: 30, r: 50, b: 30, l: 50 },
-            font: { family: 'var(--outfit-font)', color: '#ffffff', size: 9 },
-            height: undefined, 
+            font: { 
+              family: 'var(--font-sans)', 
+              color: isLight ? '#1a1a1a' : '#ffffff', 
+              size: 9 
+            },
+            height: undefined,
             width: undefined,
             dragmode: 'pan',
+            xaxis: {
+              ...plotData.layout.xaxis,
+              gridcolor: isLight ? 'rgba(0,0,0,0.05)' : 'rgba(255,255,255,0.03)',
+              linecolor: isLight ? 'rgba(0,0,0,0.1)' : 'rgba(255,255,255,0.1)',
+              tickfont: { color: isLight ? '#1a1a1a' : '#ffffff' }
+            },
+            yaxis: {
+              ...plotData.layout.yaxis,
+              gridcolor: isLight ? 'rgba(0,0,0,0.05)' : 'rgba(255,255,255,0.03)',
+              linecolor: isLight ? 'rgba(0,0,0,0.1)' : 'rgba(255,255,255,0.1)',
+              tickfont: { color: isLight ? '#1a1a1a' : '#ffffff' }
+            },
             legend: {
               orientation: 'h',
               yanchor: 'bottom',
@@ -83,7 +102,7 @@ export const TechnicalChart: React.FC<TechnicalChartProps> = ({ symbol, exchange
               xanchor: 'right',
               x: 1,
               font: { color: 'black', size: 10 },
-              bgcolor: 'rgba(210, 210, 210, 0.9)', // Light institutional grey
+              bgcolor: isLight ? 'rgba(240, 240, 240, 0.9)' : 'rgba(210, 210, 210, 0.9)', 
               borderwidth: 0
             }
           }}
