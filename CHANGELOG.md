@@ -64,3 +64,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ## Modified
 - Fixed the previous not working or NA data.
+
+## [0.2.4] - 2026-03-27
+
+### Added
+- The context history and the backend to store the chat sessions.
+- Added the portfolio Tab and stored in the backend.
+
+## Modified 
+- Improved the AI agent orchestrator and the tools with proper data fetching and analysis.
+- Added the proper test files for the AI agent orchestrator and the tools.
