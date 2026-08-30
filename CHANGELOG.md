@@ -74,3 +74,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 ## Modified 
 - Improved the AI agent orchestrator and the tools with proper data fetching and analysis.
 - Added the proper test files for the AI agent orchestrator and the tools.
+
+## [0.2.5] - 2026-03-28
+
+### Added
+- Research on a Complete Market Overview and analysis.
+- Added the complete Market overview with the tree.
+- Added Graph visulaization for the top losers and Gainers.

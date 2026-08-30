@@ -136,28 +136,38 @@ export function useLayoutManager(initialPanels: PanelState[], storageKey?: strin
     return finalLayout;
   }, []);
 
+  const [isDragging, setIsDragging] = useState(false);
+  const rafRef = useRef<number | null>(null);
+
   const onMouseMove = useCallback((e: MouseEvent) => {
     if (!dragRef.current) return;
-    const { id, startX, startY, startWidth, startHeight, panelStartX, panelStartY, type } = dragRef.current;
-    const deltaX = e.clientX - startX;
-    const deltaY = e.clientY - startY;
+    
+    if (rafRef.current) cancelAnimationFrame(rafRef.current);
+    
+    rafRef.current = requestAnimationFrame(() => {
+      const { id, startX, startY, startWidth, startHeight, panelStartX, panelStartY, type } = dragRef.current!;
+      const deltaX = e.clientX - startX;
+      const deltaY = e.clientY - startY;
 
-    setPanels(prev => {
-      let nextPanels = prev.map(p => {
-        if (p.id !== id) return p;
-        if (type === 'resize') return { ...p, w: Math.max(200, startWidth + deltaX), h: Math.max(100, startHeight + deltaY) };
-        return { ...p, x: Math.max(0, panelStartX + deltaX), y: Math.max(15, panelStartY + deltaY) };
+      setPanels(prev => {
+        let nextPanels = prev.map(p => {
+          if (p.id !== id) return p;
+          if (type === 'resize') return { ...p, w: Math.max(200, startWidth + deltaX), h: Math.max(100, startHeight + deltaY) };
+          return { ...p, x: Math.max(0, panelStartX + deltaX), y: Math.max(15, panelStartY + deltaY) };
+        });
+        return resolveLayout(nextPanels, id, true);
       });
-      return resolveLayout(nextPanels, id, true);
     });
   }, [resolveLayout]);
 
   const onMouseUp = useCallback(() => {
     if (dragRef.current) {
+      if (rafRef.current) cancelAnimationFrame(rafRef.current);
       const id = dragRef.current.id;
       setPanels(prev => resolveLayout(prev, id, false));
     }
     dragRef.current = null;
+    setIsDragging(false);
     document.removeEventListener('mousemove', onMouseMove);
     document.removeEventListener('mouseup', onMouseUp);
   }, [onMouseMove, resolveLayout]);
@@ -167,6 +177,7 @@ export function useLayoutManager(initialPanels: PanelState[], storageKey?: strin
     if (!panel || panel.maximized) return;
     e.preventDefault();
     dragRef.current = { id, startX: e.clientX, startY: e.clientY, startWidth: panel.w, startHeight: panel.h, panelStartX: panel.x, panelStartY: panel.y, type };
+    setIsDragging(true);
     document.addEventListener('mousemove', onMouseMove);
     document.addEventListener('mouseup', onMouseUp);
     setActivePanelId(id);
@@ -195,6 +206,7 @@ export function useLayoutManager(initialPanels: PanelState[], storageKey?: strin
   return {
     panels,
     activePanelId,
+    isDragging,
     setActivePanelId,
     startDrag,
     handleClose,

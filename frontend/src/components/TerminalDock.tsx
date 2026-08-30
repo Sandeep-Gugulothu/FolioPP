@@ -165,7 +165,7 @@ export function TerminalDock() {
     }
     const fetchSuggestions = async () => {
       try {
-        const res = await fetch(`http://localhost:8000/api/tickers/search?q=${tickerQuery}`);
+        const res = await fetch(`/api/tickers/search?q=${tickerQuery}`);
         if (res.ok) {
           const data = await res.json();
           setSuggestions(data);
@@ -231,7 +231,7 @@ export function TerminalDock() {
     <div className="flex h-screen w-full bg-primary-bg overflow-hidden font-sans text-primary-text">
 
       {/* 1. Sidebar (Elite Compact) */}
-      <aside className="w-16 h-full border-r border-primary-border flex flex-col items-center py-6 gap-8 bg-sidebar-bg shrink-0 z-50 transition-colors">
+      <aside className="w-20 h-full border-r border-primary-border flex flex-col items-center py-8 gap-8 bg-sidebar-bg shrink-0 z-50 transition-colors">
         <div className="w-9 h-9 relative mb-4 cursor-pointer transition-transform">
           <Image src={LogoImage} alt="FolioPP Logo" fill className="object-contain" priority />
         </div>
@@ -245,7 +245,7 @@ export function TerminalDock() {
           <div className="relative">
             <SidebarItem icon={Plus} onClick={() => setIsAddMenuOpen(!isAddMenuOpen)} active={isAddMenuOpen} />
             {isAddMenuOpen && (
-              <div className="absolute left-16 bottom-0 w-56 bg-surface-bg border border-primary-border rounded-xl shadow-2xl z-[1000] p-2 animate-in slide-in-from-left-2 fade-in duration-200">
+              <div className="absolute left-16 bottom-0 w-56 bg-surface-bg border border-primary-border rounded-xl z-[1000] p-2 animate-in slide-in-from-left-2 fade-in duration-200">
                 <div className="px-3 py-2 border-b border-primary-border mb-1">
                   <span className="text-[10px] font-bold uppercase tracking-widest text-secondary-text">Add Terminal Module</span>
                 </div>
@@ -275,9 +275,9 @@ export function TerminalDock() {
 
         {/* Top Neural Breadcrumbs (Ticket + Search) */}
         {activeTab !== 'Portfolio' && (
-          <header className="h-16 border-b border-primary-border px-8 flex items-center justify-between shrink-0 bg-background/80 backdrop-blur-md z-[1000] sticky top-0 transition-colors">
-            <div className="flex items-center gap-3">
-              <div className="relative flex items-center bg-primary-text/5 rounded-xl border border-primary-border p-1.5 pl-4 transition-all shadow-lg">
+          <header className="h-20 border-b border-primary-border px-10 flex items-center justify-between shrink-0 bg-primary-bg z-[1000] sticky top-0 transition-colors">
+            <div className="flex items-center gap-6">
+              <div className="relative flex items-center bg-surface-bg rounded-2xl border border-primary-border p-2 pl-5 transition-all">
                 <span className="text-[13px] font-black uppercase tracking-[0.2em] text-primary-text">Ticker</span>
                 <div className="w-px h-4 bg-primary-text/10 mx-5" />
                 <input
@@ -296,22 +296,22 @@ export function TerminalDock() {
 
                 {/* Ticker Suggestions Dropdown */}
                 {isSuggestionsOpen && suggestions.length > 0 && (
-                  <div className="absolute top-full left-0 mt-2 w-72 bg-surface-bg border border-primary-border rounded-xl shadow-2xl z-[1100] py-2 overflow-hidden animate-in slide-in-from-top-2 fade-in duration-200">
-                    <div className="px-4 py-1.5 border-b border-primary-border/10 mb-1">
-                      <span className="text-[9px] font-bold uppercase tracking-widest text-secondary-text">Market Symbols</span>
+                   <div className="absolute top-full left-0 mt-3 w-80 bg-surface-bg border border-primary-border rounded-2xl z-[1100] py-3 overflow-hidden animate-in slide-in-from-top-2 fade-in duration-300">
+                    <div className="px-5 py-2 border-b border-primary-border mb-1">
+                      <span className="text-[10px] font-black uppercase tracking-[0.2em] text-secondary-text">Market Intelligence</span>
                     </div>
-                    <div className="max-h-[300px] overflow-y-auto no-scrollbar">
+                    <div className="max-h-[350px] overflow-y-auto no-scrollbar">
                       {suggestions.map((s) => (
                         <div 
                           key={s.symbol} 
                           onMouseDown={(e) => { e.preventDefault(); triggerSearch(s.symbol); }}
-                          className="px-4 py-2.5 hover:bg-primary-text/5 active:bg-primary-text/10 cursor-pointer flex flex-col gap-0.5 group transition-colors"
+                          className="px-5 py-3 hover:bg-white/5 active:bg-white/10 cursor-pointer flex flex-col gap-0.5 group transition-all"
                         >
-                          <span className="text-[11px] font-black uppercase tracking-widest text-primary-text group-hover:text-primary-text flex items-center justify-between">
+                          <span className="text-[12px] font-black uppercase tracking-widest text-white/90 group-hover:text-blue-400 flex items-center justify-between">
                             {s.symbol}
-                            <ArrowRight size={10} className="opacity-0 group-hover:opacity-100 transition-opacity" />
+                            <ArrowRight size={12} className="opacity-0 group-hover:opacity-100 -translate-x-2 group-hover:translate-x-0 transition-all" />
                           </span>
-                          <span className="text-[9px] font-medium text-secondary-text truncate uppercase">{s.name}</span>
+                          <span className="text-[9px] font-bold text-white/40 truncate uppercase tracking-wider">{s.name}</span>
                         </div>
                       ))}
                     </div>
@@ -325,7 +325,7 @@ export function TerminalDock() {
                 <button
                   key={tab}
                   onClick={() => setActiveTab(tab)}
-                  className={`px-4 py-1.5 text-[12px] font-bold uppercase tracking-wider rounded-lg transition-all ${tab === activeTab ? 'bg-primary-text/10 text-primary-text shadow-xl' : 'text-secondary-text hover:text-primary-text hover:bg-primary-text/5'}`}
+                  className={`px-6 py-2.5 text-[12px] font-bold uppercase tracking-[0.1em] rounded-2xl transition-all duration-300 ${tab === activeTab ? 'bg-accent-color/10 text-accent-color' : 'text-secondary-text hover:text-primary-text hover:bg-primary-text/5'}`}
                 >
                   {tab}
                 </button>
@@ -338,7 +338,7 @@ export function TerminalDock() {
         )}
 
         {/* The Compacting Stage */}
-        <div className={`relative flex-1 p-4 pr-12 min-h-[1500px] transition-all duration-300 ${isAiOpen ? 'mr-[500px]' : ''}`}>
+        <div className={`relative flex-1 p-8 pr-16 min-h-[1500px] transition-[margin] duration-300 ${isAiOpen ? 'mr-[500px]' : ''}`}>
           {activeTab === 'Portfolio' ? (
             <div className="w-full h-full max-w-[1460px] mx-auto animate-in fade-in slide-in-from-bottom-4 duration-700">
               <Portfolio />
@@ -349,6 +349,7 @@ export function TerminalDock() {
                 key={p.id}
                 panel={p}
                 isActive={activeManager.activePanelId === p.id}
+                isDragging={activeManager.isDragging}
                 onStartDrag={activeManager.startDrag}
                 onClose={activeManager.handleClose}
                 onMaximize={activeManager.handleMaximize}
@@ -357,55 +358,7 @@ export function TerminalDock() {
                 onClick={() => activeManager.setActivePanelId(p.id)}
                 theme={theme}
               >
-                {(() => {
-                  switch (p.id) {
-                    case 'profile': return <Profile symbol={p.symbol} exchange={exchange} theme={theme} />;
-                    case 'performance': return <Performance symbol={p.symbol} exchange={exchange} theme={theme} />;
-                    case 'financials': return <Financials symbol={p.symbol} exchange={exchange} theme={theme} />;
-                    case 'rev_chart': return <RevenueChart symbol={p.symbol} exchange={exchange} theme={theme} />;
-                    case 'exp_chart': return <ExpenseChart symbol={p.symbol} exchange={exchange} theme={theme} />;
-                    case 'profit_chart': return <ProfitabilityChart symbol={p.symbol} exchange={exchange} theme={theme} />;
-                    case 'watchlist': return <Watchlist theme={theme} />;
-                    case 'market_treemap': return <MarketTreemap theme={theme} />;
-                    case 'movers': return <MoversDashboard theme={theme} />;
-                    case 'performance_scatter': return <PerformanceScatter theme={theme} />;
-                    case 'pulse': return <PulseMonitor theme={theme} />;
-                    case 'news_monitor': return <News symbol={p.symbol} exchange={exchange} theme={theme} />;
-                    case 'bulk_stream': return <BulkDealsStream theme={theme} />;
-                    case 'signals': return <News symbol={p.symbol} exchange={exchange} theme={theme} />;
-                    case 'tech_chart': return <TechnicalChart symbol={p.symbol} exchange={exchange} theme={theme} />;
-                    case 'info': return <Information symbol={p.symbol} exchange={exchange} theme={theme} />;
-                    default:
-                      if (p.id.startsWith('info') || p.id.startsWith('extra-')) {
-                        return <Information symbol={p.symbol} exchange={exchange} theme={theme} />;
-                      }
-                      if (p.id.startsWith('performance-') || p.id === 'performance') {
-                        return <Performance symbol={p.symbol} exchange={exchange} theme={theme} />;
-                      }
-                      if (p.id.startsWith('signals-') || p.id === 'signals') {
-                        return <News symbol={p.symbol} exchange={exchange} theme={theme} />;
-                      }
-                      if (p.id.startsWith('profile-') || p.id === 'profile') {
-                        return <Profile symbol={p.symbol} exchange={exchange} theme={theme} />;
-                      }
-                      if (p.id.startsWith('financials-') || p.id === 'financials') {
-                        return <Financials symbol={p.symbol} exchange={exchange} theme={theme} />;
-                      }
-                      if (p.id.startsWith('rev_chart-') || p.id === 'rev_chart') {
-                        return <RevenueChart symbol={p.symbol} exchange={exchange} theme={theme} />;
-                      }
-                      if (p.id.startsWith('exp_chart-') || p.id === 'exp_chart') {
-                        return <ExpenseChart symbol={p.symbol} exchange={exchange} theme={theme} />;
-                      }
-                      if (p.id.startsWith('profit_chart-') || p.id === 'profit_chart') {
-                        return <ProfitabilityChart symbol={p.symbol} exchange={exchange} theme={theme} />;
-                      }
-                      if (p.id.startsWith('research-')) {
-                        return <ResearchChart imageSrc={researchPlots[p.id]} />;
-                      }
-                      return <div>Dashboard Module: {p.id}</div>;
-                  }
-                })()}
+                <PanelContent p={p} exchange={exchange} theme={theme} researchPlots={researchPlots} />
               </DockPanel>
             ))
           )}
@@ -425,14 +378,68 @@ export function TerminalDock() {
   );
 }
 
+// --- Memoized Content Router ---
+const PanelContent = React.memo(({ p, exchange, theme, researchPlots }: any) => {
+  switch (p.id) {
+    case 'profile': return <Profile symbol={p.symbol} exchange={exchange} theme={theme} />;
+    case 'performance': return <Performance symbol={p.symbol} exchange={exchange} theme={theme} />;
+    case 'financials': return <Financials symbol={p.symbol} exchange={exchange} theme={theme} />;
+    case 'rev_chart': return <RevenueChart symbol={p.symbol} exchange={exchange} theme={theme} />;
+    case 'exp_chart': return <ExpenseChart symbol={p.symbol} exchange={exchange} theme={theme} />;
+    case 'profit_chart': return <ProfitabilityChart symbol={p.symbol} exchange={exchange} theme={theme} />;
+    case 'watchlist': return <Watchlist theme={theme} />;
+    case 'market_treemap': return <MarketTreemap theme={theme} />;
+    case 'movers': return <MoversDashboard theme={theme} />;
+    case 'performance_scatter': return <PerformanceScatter theme={theme} />;
+    case 'pulse': return <PulseMonitor theme={theme} />;
+    case 'news_monitor': return <News symbol={p.symbol} exchange={exchange} theme={theme} />;
+    case 'bulk_stream': return <BulkDealsStream theme={theme} />;
+    case 'signals': return <News symbol={p.symbol} exchange={exchange} theme={theme} />;
+    case 'tech_chart': return <TechnicalChart symbol={p.symbol} exchange={exchange} theme={theme} />;
+    case 'info': return <Information symbol={p.symbol} exchange={exchange} theme={theme} />;
+    default:
+      if (p.id.startsWith('info') || p.id.startsWith('extra-')) {
+        return <Information symbol={p.symbol} exchange={exchange} theme={theme} />;
+      }
+      if (p.id.startsWith('performance-') || p.id === 'performance') {
+        return <Performance symbol={p.symbol} exchange={exchange} theme={theme} />;
+      }
+      if (p.id.startsWith('signals-') || p.id === 'signals') {
+        return <News symbol={p.symbol} exchange={exchange} theme={theme} />;
+      }
+      if (p.id.startsWith('profile-') || p.id === 'profile') {
+        return <Profile symbol={p.symbol} exchange={exchange} theme={theme} />;
+      }
+      if (p.id.startsWith('financials-') || p.id === 'financials') {
+        return <Financials symbol={p.symbol} exchange={exchange} theme={theme} />;
+      }
+      if (p.id.startsWith('rev_chart-') || p.id === 'rev_chart') {
+        return <RevenueChart symbol={p.symbol} exchange={exchange} theme={theme} />;
+      }
+      if (p.id.startsWith('exp_chart-') || p.id === 'exp_chart') {
+        return <ExpenseChart symbol={p.symbol} exchange={exchange} theme={theme} />;
+      }
+      if (p.id.startsWith('profit_chart-') || p.id === 'profit_chart') {
+        return <ProfitabilityChart symbol={p.symbol} exchange={exchange} theme={theme} />;
+      }
+      if (p.id.startsWith('research-')) {
+        return <ResearchChart imageSrc={researchPlots[p.id]} />;
+      }
+      return <div>Dashboard Module: {p.id}</div>;
+  }
+});
+
+PanelContent.displayName = 'PanelContent';
+
 // --- Sidebar Helper ---
 
 const SidebarItem = ({ icon: Icon, active = false, onClick }: any) => (
   <div
     onClick={onClick}
-    className={`p-2.5 cursor-pointer transition-all rounded-lg group ${active ? 'bg-primary-text/10 text-primary-text shadow-inner' : 'text-secondary-text hover:text-primary-text hover:bg-primary-text/5'}`}
+    className={`p-3 cursor-pointer transition-all rounded-2xl group relative ${active ? 'text-accent-color bg-accent-color/5' : 'text-secondary-text hover:text-primary-text hover:bg-primary-text/5'}`}
   >
-    <Icon size={20} className={active ? '' : 'transition-transform'} />
+    {active && <div className="absolute left-[-20px] w-1 h-6 bg-accent-color rounded-r-full" />}
+    <Icon size={22} className={active ? 'scale-110' : 'transition-transform'} />
   </div>
 );
 

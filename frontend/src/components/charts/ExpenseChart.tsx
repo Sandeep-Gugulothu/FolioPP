@@ -23,7 +23,7 @@ export const ExpenseChart: React.FC<ExpenseChartProps> = ({ symbol, exchange = "
       if (data.length === 0) setSimulation(true);
     }, 2800);
 
-    fetch(`http://localhost:8000/equity/financials?symbol=${symbol}&exchange=${exchange}&limit=12`)
+    fetch(`/equity/financials?symbol=${symbol}&exchange=${exchange}&limit=12`)
       .then(res => res.json())
       .then(d => {
         if (Array.isArray(d) && d.length > 0) {

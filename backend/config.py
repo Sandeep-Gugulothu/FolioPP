@@ -20,6 +20,7 @@ class Settings(BaseSettings):
     # Knowledge (Phase 2)
     QDRANT_HOST: str = "localhost"
     QDRANT_PORT: int = 6333
+    QDRANT_API_KEY: str | None = None
     NEO4J_URI: str = "bolt://localhost:7687"
     NEO4J_USER: str = "neo4j"
     NEO4J_PASSWORD: str = "password"

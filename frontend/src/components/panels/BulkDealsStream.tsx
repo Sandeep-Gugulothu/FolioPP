@@ -21,7 +21,7 @@ export const BulkDealsStream: React.FC<{ theme?: 'light' | 'dark' }> = ({ theme 
   useEffect(() => {
     const fetchDeals = async () => {
       try {
-        const res = await fetch("http://localhost:8000/api/institutional/latest-bulk-deals");
+        const res = await fetch("/api/institutional/latest-bulk-deals");
         if (res.ok) {
            const data = await res.json();
            setDeals(data);

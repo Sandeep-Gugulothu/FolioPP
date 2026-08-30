@@ -1,6 +1,4 @@
 """YFinance Company News Model -  Equities.
-
-Mirrors OpenBB's YFinanceCompanyNewsFetcher pattern:
 - Multi-symbol support via comma-separated symbols
 - aextract_data (async) with asyncio.gather for concurrent fetching
 - _normalize_news_item helper to flatten yfinance's nested content dict

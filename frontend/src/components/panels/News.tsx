@@ -22,8 +22,8 @@ export const News: React.FC<{ symbol: string; exchange?: string; theme?: 'light'
       try {
         setLoading(true);
         const endpoint = isGlobal
-          ? `http://localhost:8000/market/news`
-          : `http://localhost:8000/equity/news?symbol=${symbol}&exchange=${exchange}`;
+          ? `/market/news`
+          : `/equity/news?symbol=${symbol}&exchange=${exchange}`;
 
         const res = await fetch(endpoint);
         if (res.ok) {

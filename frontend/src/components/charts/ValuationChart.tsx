@@ -14,7 +14,7 @@ export const ValuationChart: React.FC<ValuationChartProps> = ({ symbol, exchange
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    fetch(`http://localhost:8000/equity/key-metrics?symbol=${symbol}&exchange=${exchange}`)
+    fetch(`/equity/key-metrics?symbol=${symbol}&exchange=${exchange}`)
       .then(res => res.json())
       .then(d => {
         setData(d);

@@ -30,7 +30,7 @@ export const Performance: React.FC<PricePerformanceProps> = ({
     const fetchData = async () => {
       try {
         const response = await fetch(
-          `http://localhost:8000/equity/historical?symbol=${symbol}&exchange=${exchange}&interval=${currentInterval}`
+          `/equity/historical?symbol=${symbol}&exchange=${exchange}&interval=${currentInterval}`
         );
         
         if (!response.ok) {

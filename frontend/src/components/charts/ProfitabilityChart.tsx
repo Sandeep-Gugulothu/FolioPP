@@ -23,7 +23,7 @@ export const ProfitabilityChart: React.FC<ProfitabilityChartProps> = ({ symbol, 
       if (data.length === 0) setSimulation(true);
     }, 3000);
 
-    fetch(`http://localhost:8000/equity/financials?symbol=${symbol}&exchange=${exchange}&limit=12`)
+    fetch(`/equity/financials?symbol=${symbol}&exchange=${exchange}&limit=12`)
       .then(res => res.json())
       .then(d => {
         if (Array.isArray(d) && d.length > 0) {

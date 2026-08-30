@@ -1,6 +1,4 @@
 """Abstract Fetcher - the TET pipeline every provider must implement.
-
-Matches OpenBB's Fetcher pattern:
 - Providers implement either extract_data (sync) or aextract_data (async).
 - If aextract_data is defined, it is aliased as extract_data automatically.
 - fetch_data() is async; use fetch_data_sync() for synchronous callers.
@@ -63,7 +61,7 @@ class Fetcher(Generic[Q, R]):
         raise NotImplementedError
 
     def __init_subclass__(cls, **kwargs):
-        """If aextract_data is overridden, alias it as extract_data (OpenBB pattern)."""
+        """If aextract_data is overridden, alias it as extract_data."""
         super().__init_subclass__(**kwargs)
         if cls.aextract_data is not Fetcher.aextract_data:
             # async provider - alias so extract_data always works

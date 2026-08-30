@@ -23,7 +23,7 @@ export const Financials: React.FC<FinancialsProps> = ({ symbol, exchange = "NSE"
     else if (activeTab === "Balance") endpoint = "balance-sheet";
     else if (activeTab === "Cash") endpoint = "cash-flow";
 
-    fetch(`http://localhost:8000/equity/${endpoint}?symbol=${symbol}&exchange=${exchange}`)
+    fetch(`/equity/${endpoint}?symbol=${symbol}&exchange=${exchange}`)
       .then(res => res.json())
       .then(d => {
         setData(Array.isArray(d) ? d : []);

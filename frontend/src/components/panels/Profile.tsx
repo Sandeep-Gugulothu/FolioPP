@@ -7,12 +7,12 @@ export const Profile: React.FC<{ symbol: string; exchange?: string; theme?: 'lig
   const [metrics, setMetrics] = useState<any>(null);
 
   useEffect(() => {
-    fetch(`http://localhost:8000/equity/profile?symbol=${symbol}&exchange=${exchange}`)
+    fetch(`/equity/profile?symbol=${symbol}&exchange=${exchange}`)
       .then(res => res.json())
       .then(setData)
       .catch(console.error);
 
-    fetch(`http://localhost:8000/equity/key-metrics?symbol=${symbol}&exchange=${exchange}`)
+    fetch(`/equity/key-metrics?symbol=${symbol}&exchange=${exchange}`)
       .then(res => res.json())
       .then(setMetrics)
       .catch(console.error);

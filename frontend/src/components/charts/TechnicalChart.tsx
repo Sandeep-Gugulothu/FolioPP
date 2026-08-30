@@ -22,7 +22,7 @@ export const TechnicalChart: React.FC<TechnicalChartProps> = ({ symbol, exchange
       setLoading(true);
       setError(null);
       try {
-        const response = await fetch(`http://localhost:8000/equity/technical-analysis?symbol=${symbol}&exchange=${exchange}`);
+        const response = await fetch(`/equity/technical-analysis?symbol=${symbol}&exchange=${exchange}`);
         if (!response.ok) throw new Error("Failed to synthesize technical chart");
         const json = await response.json();
 

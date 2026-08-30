@@ -35,7 +35,7 @@ export const AnalysisPanel: React.FC<AnalysisPanelProps> = ({
     setReasoning("");
     setResult(null);
 
-    const url = `http://localhost:8000/equity/news/analyze-stream?symbol=${symbol}&exchange=${exchange}&news_index=${newsIndex}`;
+    const url = `/equity/news/analyze-stream?symbol=${symbol}&exchange=${exchange}&news_index=${newsIndex}`;
     const eventSource = new EventSource(url);
 
     eventSource.onmessage = (event) => {

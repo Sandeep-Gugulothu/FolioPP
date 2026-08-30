@@ -4,10 +4,19 @@ from backend.config import settings
 
 class QdrantClientWrapper:
     def __init__(self):
-        self.client = AsyncQdrantClient(
-            host=settings.QDRANT_HOST,
-            port=settings.QDRANT_PORT
-        )
+        if settings.QDRANT_API_KEY:
+            endpoint = settings.QDRANT_HOST
+            if not endpoint.startswith("http"):
+                endpoint = f"https://{endpoint}"
+            self.client = AsyncQdrantClient(
+                url=endpoint,
+                api_key=settings.QDRANT_API_KEY
+            )
+        else:
+            self.client = AsyncQdrantClient(
+                host=settings.QDRANT_HOST,
+                port=settings.QDRANT_PORT
+            )
 
     async def create_collection(self, collection_name: str, vector_size: int):
         try:

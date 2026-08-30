@@ -52,55 +52,61 @@ class DRLDecisionModule:
                            symbol: str = "TICKER") -> DRLAction:
         """
         Phase 4: Decision Making.
-        Maps State -> Action using simulated policy weights.
+        Maps State -> Action using the Gymnasium-inspired state space.
         """
-        # 1. State Normalization (Logic)
-        rsi = tech_indicators.get("rsi_14", 50)
-        regime = tech_indicators.get("regime", "Neutral")
-        sentiment = nlp_features.get("sentiment", 0) # -1 to 1
-        price_impact = nlp_features.get("price_impact", 0) # -3 to 3
+        from backend.processors.drl_env import FolioPPEnv
+        env = FolioPPEnv()
         
-        # 2. Simulated Policy Scoring
-        # Positive sentiment + Oversold (RSI < 30) = Strong Buy
-        # Negative sentiment + Overbought (RSI > 70) = Strong Sell
+        # 1. Update Env State with high-density features
+        # [Price, RSI, Sentiment, Confidence, Risk, Exposure]
+        env.update_state(tech_indicators, nlp_features, portfolio)
+        state = env.state
+        
+        # 2. Simulated Policy Scoring (Level 2: Neural Heuristic)
+        # In Level 3: This would be model.predict(state)
+        rsi = state[1]
+        sentiment = state[2]
+        investor_confidence = state[3]
+        risk = state[4]
+        exposure = state[5]
         
         score = 0.0
-        # Tech signals
-        if rsi < 35: score += 0.4
-        elif rsi > 65: score -= 0.4
+        # Positive technical/sentiment confluence
+        score += (sentiment * 0.4)
+        score += (investor_confidence / 3.0 * 0.2)
+        score += (risk / 2.0 * 0.1) # Risk reduction = score increase
         
-        if regime == "Bullish": score += 0.2
-        elif regime == "Bearish": score -= 0.2
-        
-        # NLP signals
-        score += (sentiment * 0.3)
-        score += (price_impact / 3.0 * 0.4)
+        # Mean reversion logic (RSI)
+        if rsi < 0.35: score += 0.3
+        elif rsi > 0.65: score -= 0.3
         
         # 3. Final Decision Logic
-        if score > 0.5:
+        if score > 0.4:
             action = "BUY"
-            confidence = min(0.95, 0.5 + abs(score))
-        elif score < -0.5:
+            confidence_out = min(0.98, 0.5 + abs(score))
+        elif score < -0.4:
             action = "SELL"
-            confidence = min(0.95, 0.5 + abs(score))
+            confidence_out = min(0.98, 0.5 + abs(score))
         else:
             action = "HOLD"
-            confidence = 1.0 - abs(score)
+            confidence_out = 1.0 - abs(score)
 
         # 4. Agent Selection (Simulating best agent for current regime)
-        agent = "PPO" if regime == "Neutral" else ("SAC" if regime == "Bullish" else "A2C")
+        regime = tech_indicators.get("regime", "Neutral")
+        agent = "PPO" if "Neutral" in regime else ("SAC" if "Bullish" in regime else "A2C")
         
-        # 5. Reasoning Generation
+        # 5. Reasoning Generation (Neural Features Context)
         reason_parts = []
-        if rsi < 35: reason_parts.append("RSV indicates oversold conditions")
-        if sentiment > 0: reason_parts.append(f"Positive institutional sentiment ({sentiment})")
-        if price_impact > 1: reason_parts.append("High potential positive price impact")
+        if rsi < 0.35: reason_parts.append("RSV indicates oversold conditions")
+        if sentiment > 0.5: reason_parts.append(f"Strong institutional sentiment ({sentiment})")
+        if investor_confidence > 1: reason_parts.append("Elevated investor confidence detected")
+        if risk > 0: reason_parts.append("Risk profile suggests reduced exposure risk")
         
-        reasoning = "Combined State: " + (", ".join(reason_parts) if reason_parts else "Neutral market signals")
+        reasoning = "Neural State Synth: " + (", ".join(reason_parts) if reason_parts else "Neutral market signals")
         
         return DRLAction(
             action=action,
-            confidence=round(confidence, 2),
+            confidence=round(confidence_out, 2),
             agent=agent,
             q_value=round(score, 3),
             reasoning=reasoning

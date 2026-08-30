@@ -6,7 +6,7 @@ export const Information: React.FC<{ symbol: string; exchange?: string; theme?: 
   const [data, setData] = React.useState<any>(null);
 
   React.useEffect(() => {
-    fetch(`http://localhost:8000/equity/quote?symbol=${symbol}&exchange=${exchange}`)
+    fetch(`/equity/quote?symbol=${symbol}&exchange=${exchange}`)
       .then(res => res.json())
       .then(setData)
       .catch(console.error);

@@ -349,17 +349,24 @@ class MarketAgent:
             else:
                 company_context = data_context.get("yf_profile", {"name": symbol})
                 try:
-                    analysis = self.nlp_analyzer.analyze_news(news_text, company_context)
-                    data_context["nlp_features"] = {
-                        "news_relevance": analysis.news_relevance,
-                        "sentiment": analysis.sentiment,
-                        "price_impact": analysis.price_impact,
-                        "trend_direction": analysis.trend_direction,
-                        "earnings_impact": analysis.earnings_impact,
-                        "investor_confidence": analysis.investor_confidence,
-                        "risk_profile": analysis.risk_profile,
-                        "reasoning": analysis.reasoning
-                    }
+                    # 4. Phase 4: Intelligence Selection & Quantization
+                    # We stream the reasoning thoughts so the user sees the 'Brain' at work
+                    async for chunk in self.nlp_analyzer.stream_analysis(news_text, company_context):
+                        if chunk["type"] == "reasoning":
+                            yield f"{chunk['content']}\n"
+                        elif chunk["type"] == "final":
+                            analysis_data = chunk["content"]
+                            # Convert dict keys to match our nlp_features expects
+                            data_context["nlp_features"] = {
+                                "news_relevance": analysis_data.get("news_relevance"),
+                                "sentiment": analysis_data.get("sentiment"),
+                                "price_impact": analysis_data.get("price_impact"),
+                                "trend_direction": analysis_data.get("trend_direction"),
+                                "earnings_impact": analysis_data.get("earnings_impact"),
+                                "investor_confidence": analysis_data.get("investor_confidence"),
+                                "risk_profile": analysis_data.get("risk_profile"),
+                                "reasoning": analysis_data.get("reasoning")
+                            }
                     data_context["is_duplicate_experience"] = False
                 except Exception as e:
                     logger.error(f"NLP Analysis Failed: {e}")
@@ -433,11 +440,11 @@ class MarketAgent:
         #### Fundamental Analysis
         (Audit the PE, Cash Flow, and Financials from data)
         - PE Ratio: {data_context.get('yf_metrics', {}).get('trailingPE', 'N/A')}
-        - Revenue/Health: {json.dumps(data_context.get('yf_income', 'N/A'))[:200]}
+        - Revenue/Health: {json.dumps(data_context.get('yf_income', 'N/A'), default=str)[:200]}
 
         #### News Overview (Institutional)
         (Summarize top 2-3 news items)
-        {json.dumps(data_context.get('yf_news', [])[:3], indent=1)}
+        {json.dumps(data_context.get('yf_news', [])[:3], indent=1, default=str)}
 
         #### Summary
         (2-sentence professional synthesis combining all data signals)

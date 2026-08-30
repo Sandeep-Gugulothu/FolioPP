@@ -2,6 +2,7 @@
 
 from fastapi import FastAPI, HTTPException, Query
 from datetime import datetime
+import asyncio
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi_cache import FastAPICache
 from fastapi_cache.backends.redis import RedisBackend
@@ -71,9 +72,21 @@ async def startup():
     except Exception as e:
         print(f"Postgres Sync Warning: {e}")
 
-    # Ensure MinIO bucket exists for Phase 1 Ingestion
-    from backend.clients.minio import minio_client
-    await minio_client.ensure_bucket(settings.MINIO_BUCKET_RAW)
+    try:
+        from backend.clients.minio import minio_client
+        await minio_client.ensure_bucket(settings.MINIO_BUCKET_RAW)
+    except Exception as e:
+        print(f"MinIO Startup Warning: {e}. Dashboard will still run.")
+
+    # Trigger Automatic DRL Experience Evaluation & Update (Phase 4: Optimization)
+    # This runs a background loop to retrain the neural policy weights
+    async def run_drl_cycle():
+        from backend.processors.drl_trainer import drl_trainer
+        while True:
+            await drl_trainer.run_automatic_cycle()
+            await asyncio.sleep(3600) # Re-training cycle every hour
+            
+    asyncio.create_task(run_drl_cycle())
 
 # Endpoints are decentralized but maintained at the end of the file or in dedicated routers.
 

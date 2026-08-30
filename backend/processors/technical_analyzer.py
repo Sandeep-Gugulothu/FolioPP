@@ -216,12 +216,12 @@ class TechnicalAnalyzer:
         if df.empty:
             return {"error": "Processing failed: Data empty after shift/dropna"}
 
-        # 🔹 Setup Dashboard: Main (70%) + Momentum (30%)
+        # 🔹 Setup Dashboard: Main (60%) + RSI (20%) + MACD (20%)
         fig = make_subplots(
-            rows=2, cols=1, 
+            rows=3, cols=1, 
             shared_xaxes=True, 
             vertical_spacing=0.03, 
-            row_heights=[0.7, 0.3]
+            row_heights=[0.6, 0.2, 0.2]
         )
 
         # 1. 🕯️ Main Candlestick Chart (prev_ohlcv)
@@ -255,6 +255,13 @@ class TechnicalAnalyzer:
             fig.add_hline(y=70, line_dash="dash", line_color="rgba(244,63,94,0.3)", row=2, col=1)
             fig.add_hline(y=30, line_dash="dash", line_color="rgba(16,185,129,0.3)", row=2, col=1)
 
+        # 6. MACD Subplot
+        if 'macd' in df.columns and 'macd_histogram' in df.columns:
+            fig.add_trace(go.Scatter(x=df['date'], y=df['macd'], name='MACD', line=dict(color='#3b82f6', width=1.5)), row=3, col=1)
+            fig.add_trace(go.Scatter(x=df['date'], y=df['macd_signal'], name='Signal', line=dict(color='#f59e0b', width=1.5)), row=3, col=1)
+            colors = ['#10b981' if (pd.notna(val) and val >= 0) else '#f43f5e' for val in df['macd_histogram']]
+            fig.add_trace(go.Bar(x=df['date'], y=df['macd_histogram'], name='Histogram', marker_color=colors), row=3, col=1)
+
         # Matte Styling
         fig.update_layout(
             template='plotly_dark',
@@ -265,6 +272,7 @@ class TechnicalAnalyzer:
             xaxis=dict(showgrid=False, rangeslider=dict(visible=False), tickfont=dict(color='#ffffff')),
             yaxis=dict(showgrid=True, gridcolor='rgba(255,255,255,0.03)', side='right', tickfont=dict(color='#ffffff')),
             yaxis2=dict(showgrid=False, range=[0, 100], tickfont=dict(color='#ffffff')),
+            yaxis3=dict(showgrid=False, tickfont=dict(color='#ffffff')),
             dragmode='pan',
             height=600,
             hovermode='x unified',

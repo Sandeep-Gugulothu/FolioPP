@@ -75,6 +75,7 @@ class NSEBulkBlockDealFetcher(
         data: list[dict],
         **kwargs,
     ) -> list[NSEBulkBlockDealData]:
+        from foliopp_nse.utils.helpers import safe_float
         col_map = {
             "Date": "date", "Symbol": "symbol", "SecurityName": "security_name",
             "ClientName": "client_name", "Buy/Sell": "buy_sell",

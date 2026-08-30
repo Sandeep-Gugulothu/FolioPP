@@ -8,6 +8,7 @@ interface DockPanelProps {
   panel: PanelState;
   children: React.ReactNode;
   isActive: boolean;
+  isDragging: boolean;
   onStartDrag: (id: string, e: React.MouseEvent, type: 'move' | 'resize') => void;
   onClose: (id: string) => void;
   onMaximize: (id: string) => void;
@@ -21,6 +22,7 @@ export const DockPanel: React.FC<DockPanelProps> = ({
   panel: p,
   children,
   isActive,
+  isDragging,
   onStartDrag,
   onClose,
   onMaximize,
@@ -61,36 +63,37 @@ export const DockPanel: React.FC<DockPanelProps> = ({
         zIndex: isMaximized ? 400 : (isActive ? 100 : 10),
       }}
       className={`
-        bg-surface-bg border border-primary-border rounded-xl flex flex-col overflow-hidden transition-all duration-300
-        shadow-2xl opacity-100 font-sans
+        bg-surface-bg border border-primary-border rounded-2xl flex flex-col overflow-hidden
+        ${!isDragging ? 'transition-all duration-300' : ''}
+        ring-1 ring-primary-text/[0.02] font-sans
       `}
     >
       {/* 🔹 Institutional Header */}
       <div
         onMouseDown={(e) => onStartDrag(p.id, e, 'move')}
         className={`
-          h-10 px-4 flex items-center justify-between cursor-move select-none shrink-0 border-b border-primary-border bg-primary-text/[0.015]
+          h-12 px-5 flex items-center justify-between cursor-move select-none shrink-0 border-b border-primary-border/40 bg-primary-text/[0.01]
         `}
       >
         <div className="flex items-center gap-3">
-          <IconComponent size={12} className="text-secondary-text opacity-40" />
-          <span className="text-[10px] font-black text-primary-text uppercase tracking-widest opacity-80">{p.title}</span>
+          <IconComponent size={14} className="text-secondary-text opacity-50" />
+          <span className="text-[11px] font-bold text-primary-text uppercase tracking-[0.15em] opacity-90">{p.title}</span>
         </div>
 
-        <div className="flex items-center gap-1.5" onMouseDown={e => e.stopPropagation()}>
+        <div className="flex items-center gap-1" onMouseDown={e => e.stopPropagation()}>
           <button 
             onClick={() => onAskAI?.(p.id, p.title)}
-            className="p-1.5 hover:bg-primary-text/10 text-primary-text/40 transition-all rounded-md group"
-            title="Ask Neural Intelligence"
+            className="p-2 hover:bg-primary-text/5 text-secondary-text transition-all rounded-lg group"
+            title="Neural Insights"
           >
-            <BrainCircuit size={12} className="group-hover:scale-110 transition-transform" />
+            <BrainCircuit size={14} className="group-hover:text-accent-color transition-colors" />
           </button>
 
-          <div className="w-px h-3 bg-primary-border mx-1" />
+          <div className="w-px h-3 bg-primary-border/60 mx-1.5" />
 
-          <button onClick={() => onMinimize(p.id)} className="p-1.5 hover:bg-primary-text/5 text-primary-text/40 transition-colors rounded-md"><ChevronDown size={13} /></button>
-          <button onClick={() => onMaximize(p.id)} className={`p-1.5 transition-all rounded-md ${isMaximized ? 'bg-primary-text/10 text-primary-text' : 'text-primary-text/40 hover:bg-primary-text/5'}`}><Maximize2 size={13} /></button>
-          <button onClick={() => onClose(p.id)} className="p-1.5 hover:bg-rose-500/10 hover:text-rose-400 text-primary-text/40 transition-all rounded-md"><X size={13} /></button>
+          <button onClick={() => onMinimize(p.id)} className="p-2 hover:bg-primary-text/5 text-secondary-text transition-colors rounded-lg"><ChevronDown size={14} /></button>
+          <button onClick={() => onMaximize(p.id)} className={`p-2 transition-all rounded-lg ${isMaximized ? 'bg-accent-color/10 text-accent-color' : 'text-secondary-text hover:bg-primary-text/5'}`}><Maximize2 size={14} /></button>
+          <button onClick={() => onClose(p.id)} className="p-2 hover:bg-rose-500/10 hover:text-rose-500 text-secondary-text transition-all rounded-lg"><X size={14} /></button>
         </div>
       </div>
 

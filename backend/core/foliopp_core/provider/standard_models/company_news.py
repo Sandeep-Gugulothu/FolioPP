@@ -1,6 +1,4 @@
 """Company News Standard Model.
-
-Mirrors OpenBB's CompanyNewsData/CompanyNewsQueryParams, adapted for Indian equities.
 """
 
 from datetime import date as dateType, datetime

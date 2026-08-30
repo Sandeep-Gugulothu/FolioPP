@@ -1,0 +1,4 @@
+entrypoint: "python pipelines/ingestion/main.py"
+runtime_env:
+  working_dir: "./"
+  pip: ["boto3", "qdrant-client", "neo4j", "langchain", "unstructured"]

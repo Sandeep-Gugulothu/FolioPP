@@ -54,26 +54,34 @@ class DRLTrainer:
             logger.info(f"Evaluating {len(unrewarded)} mature decisions for Reward calculation.")
             
             for entry in unrewarded:
-                # 1. State(St) Baseline: Initial Price
-                price_t = entry.state_json.get("tech", {}).get("price", 100)
+                # 1. Reconstruct Env State
+                from backend.processors.drl_env import FolioPPEnv
+                env = FolioPPEnv()
+                env.update_state(
+                    tech_indicators=entry.state_json.get("tech", {}),
+                    nlp_features=entry.state_json.get("nlp", {}),
+                    portfolio=entry.state_json.get("portfolio", {})
+                )
                 
-                # 2. Environment Outcome (St+1): Price 24H later
-                # FOR DEMO: In a live system, we fetch historical close for that timestamp.
-                # Here we simulate the environment feedback with a random walk (+/- 2%)
-                price_t_plus_1 = price_t * (1 + random.uniform(-0.03, 0.04))
+                # 2. Simulate environment transition Outcome (St+1)
+                # In real prod: we'd compute the PnL of the transaction over 24h
+                price_t = entry.state_json.get("tech", {}).get("price", 100)
+                # Simulated 'Market Truth' for the demo backtest:
+                # High Sentiment stocks move up 1.5% average; Low Sentiment move down.
+                sentiment = entry.state_json.get("nlp", {}).get("sentiment", 0)
+                mean_return = 0.015 if sentiment > 0.5 else (-0.01 if sentiment < -0.5 else 0)
+                price_t_plus_1 = price_t * (1 + mean_return + random.uniform(-0.02, 0.02))
                 
                 perf = (price_t_plus_1 - price_t) / price_t
                 
-                # 3. Reward (Rt): Positive if Action moved directionally with price
-                if entry.action == "BUY":
-                    reward = perf
-                elif entry.action == "SELL":
-                    reward = -perf
-                else: # HOLD
-                    reward = 0.005 if abs(perf) < 0.01 else -abs(perf) # Hold + Stability = Small Reward
+                # 3. Calculate Reward (Rt)
+                _, reward, _, _, _ = env.step(1 if entry.action == "BUY" else (2 if entry.action == "SELL" else 0))
                 
-                entry.reward = round(reward, 4)
-                logger.info(f"Decision {entry.id} ({entry.symbol}) Reward: {entry.reward}")
+                # 4. Final Reward weighting (PnL based)
+                final_reward = round(reward * 0.5 + perf * 0.5, 4)
+                
+                entry.reward = final_reward
+                logger.info(f"Decision {entry.id} ({entry.symbol}) State -> Action({entry.action}) Reward: {entry.reward}")
             
             await db.commit()
 
