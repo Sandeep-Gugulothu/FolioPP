@@ -20,3 +20,4 @@ ray[serve]
 fastapi-cache2[redis]
 pydantic-settings
 aiohttp
+jinja2
