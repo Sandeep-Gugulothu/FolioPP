@@ -7,11 +7,13 @@ import logging
 import asyncio
 import re
 import hashlib
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import AsyncGenerator, Dict, List, Any, Optional
 
 from groq import AsyncGroq
 from sqlalchemy import select
+from langgraph.graph import StateGraph, START, END
+from typing_extensions import TypedDict
 
 from backend.config import settings
 from backend.clients.postgres import AsyncSessionLocal
@@ -51,6 +53,22 @@ from foliopp_nse.models.shareholding_pattern import NSEShareholdingPatternFetche
 
 logger = logging.getLogger("MarketAgent")
 
+class AgentState(TypedDict):
+    query: str
+    session_id: str
+    active_symbol: Optional[str]
+    history: List[Dict[str, Any]]
+    intent: Optional[str]
+    intent_reasoning: Optional[str]
+    target_symbol: Optional[str]
+    symbols: List[str]
+    required_tools: List[str]
+    data_context: Dict[str, Any]
+    drl_decision: Optional[Dict[str, Any]]
+    report_prompt: Optional[str]
+    portfolio_mode: bool
+    portfolio_data: List[Dict[str, Any]]
+
 class MarketAgent:
     """
     FolioPP Orchestrator.
@@ -61,6 +79,23 @@ class MarketAgent:
         self.client = AsyncGroq(api_key=settings.GROQ_API_KEY)
         self.model = "llama-3.1-8b-instant"
         self.nlp_analyzer = NLPAnalyzer()
+        
+        # Build LangGraph StateGraph
+        workflow = StateGraph(AgentState)
+        workflow.add_node("intent", self.node_detect_intent)
+        workflow.add_node("plan", self.node_generate_plan)
+        workflow.add_node("harvest", self.node_harvest)
+        workflow.add_node("analyze", self.node_analyze)
+        workflow.add_node("synthesize", self.node_synthesize)
+        
+        workflow.add_edge(START, "intent")
+        workflow.add_edge("intent", "plan")
+        workflow.add_edge("plan", "harvest")
+        workflow.add_edge("harvest", "analyze")
+        workflow.add_edge("analyze", "synthesize")
+        workflow.add_edge("synthesize", END)
+        
+        self.graph = workflow.compile()
 
     async def detect_intent(self, query: str, history: List[Dict] = []) -> Dict[str, Any]:
         """Phase 1: Intent Detection & Target Extraction with Context."""
@@ -159,64 +194,41 @@ class MarketAgent:
         )
         return json.loads(resp.choices[0].message.content)
 
-    async def chat_stream(self, query: str, active_symbol: Optional[str] = None, session_id: str = "default") -> AsyncGenerator[str, None]:
-        """Full Pipeline: History -> Intent -> Harvest -> Analysis -> Synthesis -> Persist."""
-        
-        # 🟢 LOCAL-MODE: Check for basic definitions (Skip LLM for speed/cost)
-        definitions = {
-            "BULK DEALS": "**NSE Bulk Deals**: A deal is recorded as 'Bulk' when the total quantity of shares bought or sold on a single exchange is more than 0.5% of the total number of equity shares of the listed company. These are executed during normal market hours.",
-            "BLOCK DEALS": "**NSE Block Deals**: A single trade that involves a minimum quantity of 5,00,000 shares OR a minimum value of ₹5 Crores. These are executed in a separate 15-minute window before market opens.",
-            "RSI": "**Relative Strength Index (RSI)**: A momentum oscillator that measures the speed and change of price movements. RSI oscillates between zero and 100. Usually, RSI > 70 is overbought and RSI < 30 is oversold.",
-            "PROMOTER TRADING": "**Promoter Trading**: When individuals or entities classified as promoters (owners/founding group) buy or sell shares. High-volume selling by promoters is often a risk signal in the FolioPP DRL model."
+    async def node_detect_intent(self, state: AgentState) -> Dict[str, Any]:
+        intent_data = await self.detect_intent(state["query"], state["history"])
+        return {
+            "intent": intent_data.get("intent", "GENERAL"),
+            "intent_reasoning": intent_data.get("reasoning", ""),
+            "target_symbol": intent_data.get("target_symbol")
         }
-        
-        upper_query = query.upper()
-        for key, text in definitions.items():
-            if key in upper_query and len(query.split()) < 5:
-                yield f"### Institutional Definition: {key}\n\n{text}\n\n*This is a local terminal definition. No AI tokens were consumed for this response.*"
-                return
 
-        # 0. Load History (Last 10 messages)
-        history = await self._get_history(session_id, limit=10)
-        
-        # 1. Phase 1: IntentDetection
-        intent_data = await self.detect_intent(query, history)
-        intent = intent_data.get("intent", "GENERAL")
-        reasoning = intent_data.get("reasoning", "")
-        target_symbol = intent_data.get("target_symbol")
-        
-        yield f"🎯 [THOUGHT] Intent: **{intent}**. Reasoning: *{reasoning}* [/THOUGHT]\n"
+    async def node_generate_plan(self, state: AgentState) -> Dict[str, Any]:
+        if state["intent"] != "RESEARCH":
+            return {"symbols": [], "required_tools": []}
+        suggested_symbol = state["target_symbol"] or state["active_symbol"] or None
+        plan = await self.generate_harvest_plan(state["query"], state["intent"], suggested_symbol)
+        return {
+            "symbols": plan.get("symbols", [suggested_symbol] if suggested_symbol else ["SBIN"]),
+            "required_tools": plan.get("required_tools", ["yf_quote"])
+        }
 
-        if intent == "GENERAL":
-            async for chunk in self._general_chat(query, session_id): yield chunk
-            return
-
-        if intent == "PORTFOLIO" and not target_symbol:
+    async def node_harvest(self, state: AgentState) -> Dict[str, Any]:
+        if state["intent"] == "PORTFOLIO" and not state["target_symbol"]:
             async with AsyncSessionLocal() as db:
                 holdings = (await db.execute(select(PortfolioEntry))).scalars().all()
             
-            selected_holdings = holdings # For holistic audit
-            yield f"💼 [THOUGHT] Performing a **holistic high-fidelity audit** across ALL {len(selected_holdings)} holdings. [/THOUGHT]\n"
-
-            # Parallel Audit Function
             async def audit_stock(h):
                 sym = h.symbol if h.symbol.endswith(".NS") else f"{h.symbol}.NS"
                 clean_sym = h.symbol.replace(".NS", "")
-                
-                # Fetch Quote, Tech, News
                 quote_task = YFinanceEquityQuoteFetcher.fetch_data({"symbol": sym, "exchange": "NSE"}, {})
                 hist_task = YFinanceEquityHistoricalFetcher.fetch_data({"symbol": sym, "exchange": "NSE", "period": "1y"}, {})
                 news_task = YFinanceCompanyNewsFetcher.fetch_data({"symbol": sym, "exchange": "NSE"}, {})
-                
                 q, hist, news = await asyncio.gather(quote_task, hist_task, news_task, return_exceptions=True)
-                
-                # Tech Indicator Generation
                 tech_data = {}
                 if not isinstance(hist, Exception) and hist:
                     df = technical_analyzer.process_data([r.model_dump() for r in hist])
                     last = df.iloc[-1]
                     tech_data = {"price": round(last.get("close", 0), 2), "rsi": round(last.get("rsi_14", 50), 2), "regime": last.get("regime", "Neutral")}
-                
                 return {
                     "symbol": clean_sym,
                     "holding": {"units": h.units, "avg_price": h.avg_price},
@@ -225,75 +237,27 @@ class MarketAgent:
                     "news": [n.model_dump() for n in news[:2]] if not isinstance(news, Exception) else []
                 }
 
-            # Batch Execution
-            audit_tasks = [audit_stock(h) for h in selected_holdings]
+            audit_tasks = [audit_stock(h) for h in holdings]
             portfolio_data = await asyncio.gather(*audit_tasks)
-            
-            # Synthesis Prompt
-            portfolio_prompt = f"""
-            You are an Elite Portfolio Manager. Summarize the following "Institutional Portfolio Audit".
-            Context Query: {query}
-            
-            DATA:
-            {json.dumps(portfolio_data, default=str)}
-            
-            Format:
-            ### Portfolio Audit Report
-            - **Overall Health**: (Check RSI/Regime across positions)
-            - **Technical Highlights**: (Bullet points for each stock)
-            - **Recent News Impact**: (Summarize Top 1-2 news items for the holdings)
-            - **Action Suggestions**: (Hold/Averaging/Reducing suggestions based on latest quote vs avg price)
-            """
-            
-            synth = await self.client.chat.completions.create(
-                model=self.model, 
-                messages=[
-                    {"role": "system", "content": portfolio_prompt}, 
-                    *history[-5:], 
-                    {"role": "user", "content": query}
-                ], 
-                stream=True
-            )
-
-            full_p_response = ""
-            async for chunk in synth:
-                if content := chunk.choices[0].delta.content:
-                    full_p_response += content
-                    yield content
-            
-            # Persist Portfolio Audit
-            await self._save_message(session_id, "user", query)
-            await self._save_message(session_id, "assistant", full_p_response, thoughts=[f"Holistic audit of {len(selected_holdings)} assets"])
-            return
-
-        # 2. Phase 2: Harvest Plan (Standard Research Flow)
-        suggested_symbol = target_symbol or active_symbol or None
-        plan = await self.generate_harvest_plan(query, intent, suggested_symbol)
+            return {"portfolio_mode": True, "portfolio_data": portfolio_data}
         
-        target_symbols = plan.get("symbols", [suggested_symbol] if suggested_symbol else ["SBIN"])
-        required_tools = plan.get("required_tools", ["yf_quote"])
-        
-        yield f"🔍 [THOUGHT] Plan: Targets **{', '.join(target_symbols)}**. Tools: {', '.join(required_tools)}. [/THOUGHT]\n"
+        if state["intent"] != "RESEARCH":
+            return {"portfolio_mode": False, "portfolio_data": []}
 
-        # 3. Phase 3: Parallel Logic (Standard Research Flow)
-        symbol = target_symbols[0] if target_symbols else "SBIN"
+        symbol = state["symbols"][0] if state["symbols"] else "SBIN"
         data_context = {"symbol": symbol}
-        
-        yield f"📡 [THOUGHT] Harvesting institutional dataset for {symbol}... [/THOUGHT]\n"
         
         async def wrap_task(t_id, coro):
             try: return t_id, await coro
             except Exception as e: return t_id, e
 
         tasks = []
-        for t_id in required_tools:
+        for t_id in state["required_tools"]:
             params = self._resolve_tool_params(t_id, symbol)
             fetcher = self._get_fetcher(t_id)
             if fetcher:
                 tasks.append(wrap_task(t_id, fetcher.fetch_data(params, {})))
         
-        # 🟢 ASYNC STREAMING HARVEST (The speed secret)
-        harvest_count = 0
         for future in asyncio.as_completed(tasks):
             t_id, res = await future
             if not isinstance(res, Exception):
@@ -301,16 +265,16 @@ class MarketAgent:
             else:
                 data_context[t_id] = {"error": str(res)}
                 
-            harvest_count += 1
-            if harvest_count % 3 == 0:
-                yield f"[THOUGHT] Synchronizing Pipeline: {t_id.replace('_',' ').title()} integrated... ({harvest_count}/{len(tasks)}) [/THOUGHT]\n"
+        return {"data_context": data_context, "portfolio_mode": False, "portfolio_data": []}
 
-        # 4. Phase 4: Analysis (Technical, NLP, Portfolio & DRL)
-        yield "📈 [THOUGHT] 100% Data Coverage achieved. Running technical patterns, news sentiment & Portfolio impact audit... [/THOUGHT]\n"
+    async def node_analyze(self, state: AgentState) -> Dict[str, Any]:
+        if state.get("portfolio_mode") or state["intent"] != "RESEARCH":
+            return {}
+            
+        data_context = state["data_context"]
+        symbol = data_context.get("symbol", "SBIN")
         
-        # Technical
         if data_context.get("yf_historical"):
-            # Compute deep metrics (using all data)
             tech_df = technical_analyzer.process_data(data_context["yf_historical"])
             last = tech_df.iloc[-1]
             data_context["technical_indicators"] = {
@@ -323,56 +287,45 @@ class MarketAgent:
                 "regime": last.get("regime", "Neutral"),
                 "volume": last.get("volume", 0)
             }
-            # TRUNCATE: Only pass the last 5 days of raw OHLCV context to LLM to save tokens
             data_context["yf_historical"] = data_context["yf_historical"][-5:]
 
-        # NLP (News Feature Extraction & Deduplication)
         data_context["nlp_features"] = {
             "sentiment": 0, "price_impact": 0, "risk_profile": 0, "reasoning": "No news available for deep audit."
         }
         news_hash = "no_news"
         if data_context.get("yf_news") and isinstance(data_context["yf_news"], list) and len(data_context["yf_news"]) > 0:
-            top_news = data_context["yf_news"][0] # Focus on primary headline
+            top_news = data_context["yf_news"][0]
             news_text = f"Title: {top_news.get('title', '')}\nSummary: {top_news.get('summary', '')}"
             news_hash = hashlib.sha256(news_text.encode()).hexdigest()
             
-            # CACHE CHECK: If we analyzed this exact news recently for this stock, REUSE it.
             async with AsyncSessionLocal() as db:
                 stmt = select(DRLDecision).where(DRLDecision.symbol == symbol, DRLDecision.news_hash == news_hash).order_by(DRLDecision.timestamp.desc()).limit(1)
                 existing_decision = (await db.execute(stmt)).scalar()
                 
             if existing_decision and (datetime.utcnow() - existing_decision.timestamp) < timedelta(hours=4):
-                logger.info(f"NLP Cache Hit for {symbol} (Hash: {news_hash[:8]}). Reusing analysis.")
                 cached_nlp = existing_decision.state_json.get("nlp", {})
                 data_context["nlp_features"] = cached_nlp
-                data_context["is_duplicate_experience"] = True # Flag to avoid redundant training log
+                data_context["is_duplicate_experience"] = True
             else:
                 company_context = data_context.get("yf_profile", {"name": symbol})
-                try:
-                    # 4. Phase 4: Intelligence Selection & Quantization
-                    # We stream the reasoning thoughts so the user sees the 'Brain' at work
-                    async for chunk in self.nlp_analyzer.stream_analysis(news_text, company_context):
-                        if chunk["type"] == "reasoning":
-                            yield f"{chunk['content']}\n"
-                        elif chunk["type"] == "final":
-                            analysis_data = chunk["content"]
-                            # Convert dict keys to match our nlp_features expects
-                            data_context["nlp_features"] = {
-                                "news_relevance": analysis_data.get("news_relevance"),
-                                "sentiment": analysis_data.get("sentiment"),
-                                "price_impact": analysis_data.get("price_impact"),
-                                "trend_direction": analysis_data.get("trend_direction"),
-                                "earnings_impact": analysis_data.get("earnings_impact"),
-                                "investor_confidence": analysis_data.get("investor_confidence"),
-                                "risk_profile": analysis_data.get("risk_profile"),
-                                "reasoning": analysis_data.get("reasoning")
-                            }
-                    data_context["is_duplicate_experience"] = False
-                except Exception as e:
-                    logger.error(f"NLP Analysis Failed: {e}")
-                    data_context["is_duplicate_experience"] = True # Fallback to no-log if failed
+                nlp_analysis_data = {}
+                async for chunk in self.nlp_analyzer.stream_analysis(news_text, company_context):
+                    if chunk["type"] == "final":
+                        nlp_analysis_data = chunk["content"]
+                
+                if nlp_analysis_data:
+                    data_context["nlp_features"] = {
+                        "news_relevance": nlp_analysis_data.get("news_relevance"),
+                        "sentiment": nlp_analysis_data.get("sentiment"),
+                        "price_impact": nlp_analysis_data.get("price_impact"),
+                        "trend_direction": nlp_analysis_data.get("trend_direction"),
+                        "earnings_impact": nlp_analysis_data.get("earnings_impact"),
+                        "investor_confidence": nlp_analysis_data.get("investor_confidence"),
+                        "risk_profile": nlp_analysis_data.get("risk_profile"),
+                        "reasoning": nlp_analysis_data.get("reasoning")
+                    }
+                data_context["is_duplicate_experience"] = False
 
-        # Portfolio Status
         async with AsyncSessionLocal() as db:
             holdings = (await db.execute(select(PortfolioEntry))).scalars().all()
         holding = next((h for h in holdings if h.symbol.replace(".NS","") == symbol.replace(".NS","")), None)
@@ -383,8 +336,6 @@ class MarketAgent:
             "current_value": (holding.units * data_context.get("technical_indicators", {}).get("price", 0)) if holding else 0
         }
 
-        # DRL DECISION (The missing Piece)
-        yield f"[THOUGHT] Executing DRL Module (A2C/PPO/SAC) with State(St) inputs... [/THOUGHT]\n"
         drl_result = drl_module.calculate_decision(
             tech_indicators=data_context.get("technical_indicators", {}),
             nlp_features=data_context.get("nlp_features", {}),
@@ -392,8 +343,7 @@ class MarketAgent:
             symbol=symbol
         )
         data_context["drl_decision"] = drl_result.model_dump()
-
-        # PERSIST: Log Experience to Database ONLY if NOT a duplicate/redundant context
+        
         if not data_context.get("is_duplicate_experience", False):
             try:
                 async with AsyncSessionLocal() as db:
@@ -412,69 +362,175 @@ class MarketAgent:
                     )
                     db.add(decision_entry)
                     await db.commit()
-                    logger.info(f"DRL Unique Experience logged: {symbol} -> {drl_result.action}")
             except Exception as e:
                 logger.error(f"Failed to persist DRL decision: {e}")
-        else:
-            logger.info(f"Skipping redundant DRL experience log for {symbol} (Already captured in this token/news context).")
 
-        # FINAL CONTEXT CLEANUP: Ensure no massive lists go to LLM
         for key in list(data_context.keys()):
             if isinstance(data_context[key], list) and len(data_context[key]) > 10:
-                data_context[key] = data_context[key][-10:] # Keep latest 10 items max
+                data_context[key] = data_context[key][-10:]
 
+        return {"data_context": data_context, "drl_decision": drl_result.model_dump()}
 
-        # 5. Phase 5: Investment Report Synthesis
-        report_prompt = f"""
-        You are a Senior Portfolio Manager. Generate an "Investment Report" exactly in this format:
+    async def node_synthesize(self, state: AgentState) -> Dict[str, Any]:
+        if state["intent"] == "PORTFOLIO" and state.get("portfolio_mode"):
+            report_prompt = f"""
+            You are an Elite Portfolio Manager. Summarize the following "Institutional Portfolio Audit".
+            Context Query: {state["query"]}
+            
+            DATA:
+            {json.dumps(state["portfolio_data"], default=str)}
+            
+            Format:
+            ### Portfolio Audit Report
+            - **Overall Health**: (Check RSI/Regime across positions)
+            - **Technical Highlights**: (Bullet points for each stock)
+            - **Recent News Impact**: (Summarize Top 1-2 news items for the holdings)
+            - **Action Suggestions**: (Hold/Averaging/Reducing suggestions based on latest quote vs avg price)
+            """
+            return {"report_prompt": report_prompt}
+            
+        if state["intent"] == "RESEARCH":
+            data_context = state["data_context"]
+            symbol = data_context.get("symbol", "SBIN")
+            
+            report_prompt = f"""
+            You are a Senior Portfolio Manager. Generate an "Investment Report" exactly in this format:
+    
+            ### Investment Report: {symbol} ({data_context.get('yf_profile', {}).get('name', 'Company')})
+            **Date**: {datetime.now().strftime("%B %d, %Y")}
+    
+            #### Technical Analysis
+            - **Current Price**: ${data_context.get('technical_indicators', {}).get('price')} (Regime: {data_context.get('technical_indicators', {}).get('regime')})
+            - **Relative Strength Index (RSI)**: {data_context.get('technical_indicators', {}).get('rsi_14')}
+            - **Moving Average (SMA20)**: ${data_context.get('technical_indicators', {}).get('sma20')}
+            - **Trading Volume**: {data_context.get('technical_indicators', {}).get('volume', 0):,}
+    
+            #### Fundamental Analysis
+            - PE Ratio: {data_context.get('yf_metrics', {}).get('trailingPE', 'N/A')}
+            - Revenue/Health: {json.dumps(data_context.get('yf_income', 'N/A'), default=str)[:200]}
+    
+            #### News Overview (Institutional)
+            {json.dumps(data_context.get('yf_news', [])[:3], indent=1, default=str)}
+    
+            #### Summary
+            (2-sentence professional synthesis combining all data signals)
+    
+            #### Risks
+            - (Identify 2-3 specific risks from the data)
+    
+            #### Portfolio Impact & Suggestions
+            - **Current Holding**: {data_context['portfolio_status'].get('units', 0)} units at avg price of {data_context['portfolio_status'].get('avg_price', 0)}
+            - **Exposures**: (Analyze how this data affects their entry price and position size.)
+    
+            #### DRL Decision (Phase 4: Decision Making)
+            - **Model Action**: {data_context.get('drl_decision', {}).get('action')} (Confidence: {data_context.get('drl_decision', {}).get('confidence', 0)*100}%)
+            - **Calculated Q-Value**: {data_context.get('drl_decision', {}).get('q_value')}
+            - **Agent Engine**: {data_context.get('drl_decision', {}).get('agent')} (Actor-Critic Based Optimization)
+            - **DRL Reasoning**: {data_context.get('drl_decision', {}).get('reasoning')}
+      
+            #### Investment Conclusion
+            (Final Verdict: Use the DRL Model Action as a primary signal, but synthesize with Fundamental/Technical reasoning. Provide a definitive BUY/HOLD/SELL recommendation.)
+            """
+            return {"report_prompt": report_prompt}
+            
+        return {}
 
-        ### Investment Report: {symbol} ({data_context.get('yf_profile', {}).get('name', 'Company')})
-        **Date**: {datetime.now().strftime("%B %d, %Y")}
-
-        #### Technical Analysis
-        - **Current Price**: ${data_context.get('technical_indicators', {}).get('price')} (Regime: {data_context.get('technical_indicators', {}).get('regime')})
-        - **Relative Strength Index (RSI)**: {data_context.get('technical_indicators', {}).get('rsi_14')}
-        - **Moving Average (SMA20)**: ${data_context.get('technical_indicators', {}).get('sma20')}
-        - **Trading Volume**: {data_context.get('technical_indicators', {}).get('volume', 0):,}
-
-        #### Fundamental Analysis
-        (Audit the PE, Cash Flow, and Financials from data)
-        - PE Ratio: {data_context.get('yf_metrics', {}).get('trailingPE', 'N/A')}
-        - Revenue/Health: {json.dumps(data_context.get('yf_income', 'N/A'), default=str)[:200]}
-
-        #### News Overview (Institutional)
-        (Summarize top 2-3 news items)
-        {json.dumps(data_context.get('yf_news', [])[:3], indent=1, default=str)}
-
-        #### Summary
-        (2-sentence professional synthesis combining all data signals)
-
-        #### Risks
-        - (Identify 2-3 specific risks from the data)
-
-        #### Portfolio Impact & Suggestions
-        - **Current Holding**: {data_context['portfolio_status'].get('units', 0)} units at avg price of {data_context['portfolio_status'].get('avg_price', 0)}
-        - **Exposures**: (Analyze how this data affects their specific entry price and position size. Provide logic for keeping or reducing exposure.)
-
-        #### DRL Decision (Phase 4: Decision Making)
-        - **Model Action**: {data_context.get('drl_decision', {}).get('action')} (Confidence: {data_context.get('drl_decision', {}).get('confidence')*100}%)
-        - **Calculated Q-Value**: {data_context.get('drl_decision', {}).get('q_value')}
-        - **Agent Engine**: {data_context.get('drl_decision', {}).get('agent')} (Actor-Critic Based Optimization)
-        - **DRL Reasoning**: {data_context.get('drl_decision', {}).get('reasoning')}
- 
-        #### Investment Conclusion
-        (Final Verdict: Use the DRL Model Action as a primary signal, but synthesize with Fundamental/Technical reasoning. Provide a definitive BUY/HOLD/SELL recommendation.)
-        """
-        # PHASE 5: Synthesis & Persistence
-        thoughts_log = [reasoning] if reasoning else []
+    async def chat_stream(self, query: str, active_symbol: Optional[str] = None, session_id: str = "default") -> AsyncGenerator[str, None]:
+        """Full Pipeline: History -> Intent -> Harvest -> Analysis -> Synthesis -> Persist (using LangGraph)."""
         
-        # Add research highlights to thoughts
-        thoughts_log.append(f"Intent: {intent}")
-        if target_symbol: thoughts_log.append(f"Target: {target_symbol}")
+        # 🟢 LOCAL-MODE: Check for basic definitions (Skip LLM for speed/cost)
+        definitions = {
+            "BULK DEALS": "**NSE Bulk Deals**: A deal is recorded as 'Bulk' when the total quantity of shares bought or sold on a single exchange is more than 0.5% of the total number of equity shares of the listed company. These are executed during normal market hours.",
+            "BLOCK DEALS": "**NSE Block Deals**: A single trade that involves a minimum quantity of 5,00,000 shares OR a minimum value of ₹5 Crores. These are executed in a separate 15-minute window before market opens.",
+            "RSI": "**Relative Strength Index (RSI)**: A momentum oscillator that measures the speed and change of price movements. RSI oscillates between zero and 100. Usually, RSI > 70 is overbought and RSI < 30 is oversold.",
+            "PROMOTER TRADING": "**Promoter Trading**: When individuals or entities classified as promoters (owners/founding group) buy or sell shares. High-volume selling by promoters is often a risk signal in the FolioPP DRL model."
+        }
+        
+        upper_query = query.upper()
+        for key, text in definitions.items():
+            if key in upper_query and len(query.split()) < 5:
+                yield f"### Institutional Definition: {key}\n\n{text}\n\n*This is a local terminal definition. No AI tokens were consumed for this response.*"
+                return
+
+        # 0. Load History (Last 10 messages)
+        history = await self._get_history(session_id, limit=10)
+        
+        # Initialize LangGraph State
+        state = {
+            "query": query,
+            "session_id": session_id,
+            "active_symbol": active_symbol,
+            "history": history,
+            "intent": None,
+            "intent_reasoning": None,
+            "target_symbol": None,
+            "symbols": [],
+            "required_tools": [],
+            "data_context": {},
+            "drl_decision": None,
+            "report_prompt": None,
+            "portfolio_mode": False,
+            "portfolio_data": []
+        }
+
+        # Run LangGraph step-by-step using astream
+        async for event in self.graph.astream(state, stream_mode="updates"):
+            # Update local state with the node updates
+            for node_name, node_state_update in event.items():
+                state.update(node_state_update)
+
+            # Node transition updates
+            if "intent" in event:
+                node_data = event["intent"]
+                intent = node_data.get("intent", "GENERAL")
+                reasoning = node_data.get("intent_reasoning", "")
+                yield f"🎯 [THOUGHT] Intent: **{intent}**. Reasoning: *{reasoning}* [/THOUGHT]\n"
+                
+                if intent == "GENERAL":
+                    async for chunk in self._general_chat(query, session_id):
+                        yield chunk
+                    return
+
+            elif "plan" in event:
+                node_data = event["plan"]
+                symbols = node_data.get("symbols", [])
+                tools = node_data.get("required_tools", [])
+                if symbols and tools:
+                    yield f"🔍 [THOUGHT] Plan: Targets **{', '.join(symbols)}**. Tools: {', '.join(tools)}. [/THOUGHT]\n"
+
+            elif "harvest" in event:
+                node_data = event["harvest"]
+                if node_data.get("portfolio_mode"):
+                    yield f"💼 [THOUGHT] Performing a **holistic high-fidelity audit** across ALL holdings. [/THOUGHT]\n"
+                else:
+                    symbol = state["symbols"][0] if state["symbols"] else "SBIN"
+                    yield f"📡 [THOUGHT] Harvesting institutional dataset for {symbol}... [/THOUGHT]\n"
+                    # Simulate step-by-step synchronization logs for UI
+                    tools = state["required_tools"]
+                    for idx, t_id in enumerate(tools):
+                        await asyncio.sleep(0.1)
+                        if (idx + 1) % 3 == 0 or (idx + 1) == len(tools):
+                            yield f"[THOUGHT] Synchronizing Pipeline: {t_id.replace('_',' ').title()} integrated... ({idx+1}/{len(tools)}) [/THOUGHT]\n"
+
+            elif "analyze" in event:
+                yield "📈 [THOUGHT] 100% Data Coverage achieved. Running technical patterns, news sentiment & Portfolio impact audit... [/THOUGHT]\n"
+                await asyncio.sleep(0.2)
+                yield f"[THOUGHT] Executing DRL Module (A2C/PPO/SAC) with State(St) inputs... [/THOUGHT]\n"
+
+        # Fetch final prompt to stream
+        final_prompt = state.get("report_prompt")
+        if not final_prompt:
+            return
+
+        # Synthesis & Streaming Completion
+        thoughts_log = [state.get("intent_reasoning", "")]
+        thoughts_log.append(f"Intent: {state.get('intent')}")
+        if state.get("target_symbol"):
+            thoughts_log.append(f"Target: {state.get('target_symbol')}")
         
         messages = [
-            {"role": "system", "content": report_prompt},
-            *history[-5:], # Inject last 5 messages for context
+            {"role": "system", "content": final_prompt},
+            *history[-5:],
             {"role": "user", "content": query}
         ]
         
@@ -491,10 +547,11 @@ class MarketAgent:
                 full_response += content
                 yield content
         
-        # 🔗 AUDIT LOG (Collapsible JSON)
-        yield "\n\n<details>\n<summary><b>🔍 Institutional Data Context (JSON)</b></summary>\n\n"
-        yield f"```json\n{json.dumps(data_context, indent=2, default=str)}\n```\n"
-        yield "</details>\n"
+        # 🔗 AUDIT LOG (Collapsible JSON) if research mode
+        if state["intent"] == "RESEARCH":
+            yield "\n\n<details>\n<summary><b>🔍 Institutional Data Context (JSON)</b></summary>\n\n"
+            yield f"```json\n{json.dumps(state['data_context'], indent=2, default=str)}\n```\n"
+            yield "</details>\n"
 
         # 6. Persist Conversation
         await self._save_message(session_id, "user", query)

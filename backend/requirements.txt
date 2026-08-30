@@ -21,3 +21,5 @@ fastapi-cache2[redis]
 pydantic-settings
 aiohttp
 jinja2
+langgraph
+langchain-core
